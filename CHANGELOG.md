@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.258.2 (2026-09-12)
+
+### Bug Fixes
+
+- **dittobench**: Surface received LongMem harness failures behind a completed official zero
+  ([#1804](https://github.com/ditto-assistant/ditto-subnet/pull/1804),
+  [`de9c6aa`](https://github.com/ditto-assistant/ditto-subnet/commit/de9c6aa9dd6d81e254e18a66016f607b2fb11a22))
+
+
 ## v0.258.1 (2026-09-12)
 
 ### Bug Fixes
