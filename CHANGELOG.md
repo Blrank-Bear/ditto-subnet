@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.258.1 (2026-09-12)
+
+### Bug Fixes
+
+- **platform**: Report whether the pinned confirmation profile is installed
+  ([#1803](https://github.com/ditto-assistant/ditto-subnet/pull/1803),
+  [`6bd3e88`](https://github.com/ditto-assistant/ditto-subnet/commit/6bd3e88982e269a773528bd321487b94c1293f8d))
+
+
 ## v0.258.0 (2026-09-12)
 
 ### Features
