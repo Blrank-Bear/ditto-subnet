@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.258.3 (2026-09-13)
+
+### Bug Fixes
+
+- **longmemeval**: Clamp reader completion over-ask to the frozen bound
+  ([#1806](https://github.com/ditto-assistant/ditto-subnet/pull/1806),
+  [`c7e311a`](https://github.com/ditto-assistant/ditto-subnet/commit/c7e311a9a11053d0187b3bb16f5e163f25586cdc))
+
+
 ## v0.258.2 (2026-09-12)
 
 ### Bug Fixes
