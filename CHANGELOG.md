@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.261.1 (2026-09-13)
+
+### Bug Fixes
+
+- **screener**: Preserve graceful drains and bound primary admission
+  ([#1818](https://github.com/ditto-assistant/ditto-subnet/pull/1818),
+  [`e5f4b00`](https://github.com/ditto-assistant/ditto-subnet/commit/e5f4b00c6d202b56937af1574e85dd57f73e4fd6))
+
+
 ## v0.261.0 (2026-09-13)
 
 ### Features
