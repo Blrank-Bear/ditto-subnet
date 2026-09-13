@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.262.0 (2026-09-13)
+
+### Features
+
+- **platform**: Search submissions and miners by UID
+  ([#1819](https://github.com/ditto-assistant/ditto-subnet/pull/1819),
+  [`680394e`](https://github.com/ditto-assistant/ditto-subnet/commit/680394eea439b8ad7791c18a51ce245d32e6be05))
+
+
 ## v0.261.1 (2026-09-13)
 
 ### Bug Fixes
