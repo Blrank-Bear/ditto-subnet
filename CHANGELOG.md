@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.260.2 (2026-09-13)
+
+### Bug Fixes
+
+- **relay**: Allow router.heyditto.ai as the Ditto Router upstream; correct the Ansible default path
+  ([#1814](https://github.com/ditto-assistant/ditto-subnet/pull/1814),
+  [`f2727cb`](https://github.com/ditto-assistant/ditto-subnet/commit/f2727cbc43e07082f126dfeb236f7eb7f8721965))
+
+
 ## v0.260.1 (2026-09-13)
 
 ### Bug Fixes
