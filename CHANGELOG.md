@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.259.0 (2026-09-13)
+
+### Features
+
+- **platform**: Link miner hotkeys to Ditto accounts with Sign in with Ditto, Ditto Router upstream
+  and Feedback Track plumbing ([#1805](https://github.com/ditto-assistant/ditto-subnet/pull/1805),
+  [`63f0378`](https://github.com/ditto-assistant/ditto-subnet/commit/63f0378b0b29645625dca9c683539618037550f4))
+
+
 ## v0.258.3 (2026-09-13)
 
 ### Bug Fixes
