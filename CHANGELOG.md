@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.260.1 (2026-09-13)
+
+### Bug Fixes
+
+- **infra**: Assert evidence key prefix with a boolean test
+  ([#1812](https://github.com/ditto-assistant/ditto-subnet/pull/1812),
+  [`8cc3251`](https://github.com/ditto-assistant/ditto-subnet/commit/8cc3251eebeb855859c6e07a513d4d2ed237fb03))
+
+- **platform**: Show official composite on family expander
+  ([#1811](https://github.com/ditto-assistant/ditto-subnet/pull/1811),
+  [`72dfe2a`](https://github.com/ditto-assistant/ditto-subnet/commit/72dfe2a91bf2cd9f95e26acb0dca0c0a815b6dc9))
+
+
 ## v0.260.0 (2026-09-13)
 
 ### Features
