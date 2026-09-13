@@ -2625,6 +2625,29 @@ CREATE TABLE public.evaluation_payments (
 
 
 --
+-- Name: feedback_track_contributions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.feedback_track_contributions (
+    contribution_id uuid NOT NULL,
+    ditto_user_id text NOT NULL,
+    source text NOT NULL,
+    external_ref text NOT NULL,
+    kind text NOT NULL,
+    weight numeric(12,6),
+    note text,
+    recorded_by text NOT NULL,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_feedback_track_contributions_feedback_track_external_ref_len CHECK (((length(external_ref) >= 1) AND (length(external_ref) <= 200))),
+    CONSTRAINT ck_feedback_track_contributions_feedback_track_kind_check CHECK ((kind = ANY (ARRAY['report'::text, 'follow_up'::text, 'shipped'::text]))),
+    CONSTRAINT ck_feedback_track_contributions_feedback_track_source_check CHECK ((source = 'ditto_feedback'::text)),
+    CONSTRAINT ck_feedback_track_contributions_feedback_track_user_id_len CHECK (((length(ditto_user_id) >= 1) AND (length(ditto_user_id) <= 128))),
+    CONSTRAINT ck_feedback_track_contributions_feedback_track_weight_nonneg CHECK (((weight IS NULL) OR (weight >= (0)::numeric)))
+);
+
+
+--
 -- Name: hotkey_ban_audit; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2927,6 +2950,55 @@ CREATE TABLE public.miner_device_grants (
     CONSTRAINT ck_miner_device_grants_miner_device_grants_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'expired'::text, 'denied'::text, 'consumed'::text]))),
     CONSTRAINT ck_miner_device_grants_miner_device_grants_ttl_range CHECK (((ttl_seconds >= 3600) AND (ttl_seconds <= 2592000))),
     CONSTRAINT ck_miner_device_grants_miner_device_grants_user_code_fmt CHECK ((user_code ~ '^[A-Z0-9]{4}-[A-Z0-9]{4}$'::text))
+);
+
+
+--
+-- Name: miner_ditto_link_attempts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.miner_ditto_link_attempts (
+    attempt_id uuid NOT NULL,
+    miner_hotkey text NOT NULL,
+    session_id uuid NOT NULL,
+    state_hash text NOT NULL,
+    nonce text NOT NULL,
+    code_verifier text NOT NULL,
+    client text NOT NULL,
+    return_to text,
+    status text NOT NULL,
+    error text,
+    ditto_user_id text,
+    ditto_email text,
+    accept_token_hash text,
+    accept_expires_at timestamp with time zone,
+    user_accepted_at timestamp with time zone,
+    browser_binding_hash text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone,
+    CONSTRAINT ck_miner_ditto_link_attempts_miner_ditto_link_attempts__a335 CHECK ((length(state_hash) = 64)),
+    CONSTRAINT ck_miner_ditto_link_attempts_miner_ditto_link_attempts__dbac CHECK ((status = ANY (ARRAY['pending'::text, 'identity_verified'::text, 'authenticated'::text, 'linked'::text, 'failed'::text, 'expired'::text]))),
+    CONSTRAINT ck_miner_ditto_link_attempts_miner_ditto_link_attempts__f3b8 CHECK ((client = ANY (ARRAY['dashboard'::text, 'cli'::text])))
+);
+
+
+--
+-- Name: miner_ditto_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.miner_ditto_links (
+    miner_hotkey text NOT NULL,
+    ditto_user_id text NOT NULL,
+    ditto_email text,
+    miner_coldkey text,
+    linked_via text NOT NULL,
+    session_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked_at timestamp with time zone,
+    CONSTRAINT ck_miner_ditto_links_miner_ditto_links_linked_via_check CHECK ((linked_via = ANY (ARRAY['dashboard'::text, 'cli'::text]))),
+    CONSTRAINT ck_miner_ditto_links_miner_ditto_links_user_id_len CHECK (((length(ditto_user_id) >= 1) AND (length(ditto_user_id) <= 128)))
 );
 
 
@@ -5208,6 +5280,14 @@ ALTER TABLE ONLY public.evaluation_payments
 
 
 --
+-- Name: feedback_track_contributions feedback_track_dedupe_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feedback_track_contributions
+    ADD CONSTRAINT feedback_track_dedupe_key UNIQUE (source, external_ref, kind);
+
+
+--
 -- Name: hotkey_ban_audit hotkey_ban_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5285,6 +5365,14 @@ ALTER TABLE ONLY public.miner_device_grants
 
 ALTER TABLE ONLY public.miner_device_grants
     ADD CONSTRAINT miner_device_grants_user_code_key UNIQUE (user_code);
+
+
+--
+-- Name: miner_ditto_link_attempts miner_ditto_link_attempts_state_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.miner_ditto_link_attempts
+    ADD CONSTRAINT miner_ditto_link_attempts_state_key UNIQUE (state_hash);
 
 
 --
@@ -5688,6 +5776,14 @@ ALTER TABLE ONLY public.efficiency_cohort_snapshots
 
 
 --
+-- Name: feedback_track_contributions pk_feedback_track_contributions; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feedback_track_contributions
+    ADD CONSTRAINT pk_feedback_track_contributions PRIMARY KEY (contribution_id);
+
+
+--
 -- Name: inference_concurrency_settings_revisions pk_inference_concurrency_settings_revisions; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5733,6 +5829,22 @@ ALTER TABLE ONLY public.inference_routing_audit
 
 ALTER TABLE ONLY public.inference_routing_policies
     ADD CONSTRAINT pk_inference_routing_policies PRIMARY KEY (model);
+
+
+--
+-- Name: miner_ditto_link_attempts pk_miner_ditto_link_attempts; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.miner_ditto_link_attempts
+    ADD CONSTRAINT pk_miner_ditto_link_attempts PRIMARY KEY (attempt_id);
+
+
+--
+-- Name: miner_ditto_links pk_miner_ditto_links; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.miner_ditto_links
+    ADD CONSTRAINT pk_miner_ditto_links PRIMARY KEY (miner_hotkey);
 
 
 --
@@ -6802,6 +6914,13 @@ CREATE INDEX evaluation_payments_miner_hotkey_idx ON public.evaluation_payments 
 
 
 --
+-- Name: feedback_track_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX feedback_track_user_idx ON public.feedback_track_contributions USING btree (ditto_user_id, recorded_at);
+
+
+--
 -- Name: hotkey_ban_audit_hotkey_recorded_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6869,6 +6988,20 @@ CREATE INDEX miner_avatar_nonces_hotkey_idx ON public.miner_avatar_nonces USING 
 --
 
 CREATE INDEX miner_device_grants_status_idx ON public.miner_device_grants USING btree (status, expires_at);
+
+
+--
+-- Name: miner_ditto_link_attempts_hotkey_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX miner_ditto_link_attempts_hotkey_idx ON public.miner_ditto_link_attempts USING btree (miner_hotkey, created_at);
+
+
+--
+-- Name: miner_ditto_links_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX miner_ditto_links_user_idx ON public.miner_ditto_links USING btree (ditto_user_id);
 
 
 --
@@ -8196,6 +8329,14 @@ ALTER TABLE ONLY public.miner_device_grants
 
 ALTER TABLE ONLY public.miner_device_grants
     ADD CONSTRAINT miner_device_grants_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.miner_sessions(session_id) ON DELETE SET NULL;
+
+
+--
+-- Name: miner_ditto_link_attempts miner_ditto_link_attempts_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.miner_ditto_link_attempts
+    ADD CONSTRAINT miner_ditto_link_attempts_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.miner_sessions(session_id) ON DELETE CASCADE;
 
 
 --

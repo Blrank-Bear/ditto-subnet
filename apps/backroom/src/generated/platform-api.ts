@@ -2772,6 +2772,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feedback-track/contributions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Contribution
+         * @description Operator write. Idempotent on (source, external_ref, kind).
+         */
+        post: operations["record_contribution_api_v1_feedback_track_contributions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inference/chat/completions": {
         parameters: {
             query?: never;
@@ -2967,6 +2987,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/ditto-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current Link */
+        get: operations["current_link_api_v1_me_ditto_link_get"];
+        put?: never;
+        post?: never;
+        /** Unlink */
+        delete: operations["unlink_api_v1_me_ditto_link_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/ditto-link/attempts/{attempt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Link Attempt */
+        get: operations["link_attempt_api_v1_me_ditto_link_attempts__attempt_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/ditto-link/attempts/{attempt_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Link
+         * @description Write the link. Only the holder of the miner session that started the
+         *     attempt can do this, and only for an attempt Ditto has authenticated.
+         *
+         *     The callback is reachable by whoever holds the authorize URL, so it must
+         *     never pair an account with a hotkey on its own: an attacker could start an
+         *     attempt for their hotkey and trick a victim into signing in on it. The
+         *     pairing is confirmed here, by the hotkey side, after seeing who signed in.
+         */
+        post: operations["confirm_link_api_v1_me_ditto_link_attempts__attempt_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/ditto-link/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Link */
+        post: operations["start_link_api_v1_me_ditto_link_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/feedback-track": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Contributions */
+        get: operations["my_contributions_api_v1_me_feedback_track_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/reviews": {
         parameters: {
             query?: never;
@@ -3064,6 +3179,30 @@ export interface paths {
         put?: never;
         /** Poll Device Post */
         post: operations["poll_device_post_api_v1_miner_auth_device__user_code__status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/miner-auth/ditto/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Accept Link Page
+         * @description The Ditto-side half of the pairing: show WHICH hotkey wants this account.
+         */
+        get: operations["accept_link_page_api_v1_miner_auth_ditto_accept_get"];
+        put?: never;
+        /**
+         * Accept Link Decide
+         * @description Consume the single-use accept token: accept → authenticated, else failed.
+         */
+        post: operations["accept_link_decide_api_v1_miner_auth_ditto_accept_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3593,6 +3732,26 @@ export interface paths {
          *     Snapshots never change once written, so this response is immutable.
          */
         get: operations["efficiency_snapshot_api_v1_public_efficiency_snapshots__snapshot_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/feedback-track/{hotkey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Contributions
+         * @description Counts by kind for one hotkey. Never names the account.
+         */
+        get: operations["public_contributions_api_v1_public_feedback_track__hotkey__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -15327,6 +15486,82 @@ export interface components {
             reopened: boolean;
         };
         /**
+         * FeedbackTrackContributionRequest
+         * @description One contribution recorded by the Ditto backend (operator bearer).
+         */
+        FeedbackTrackContributionRequest: {
+            /** Ditto User Id */
+            ditto_user_id: string;
+            /** External Ref */
+            external_ref: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "report" | "follow_up" | "shipped";
+            /** Note */
+            note?: string | null;
+            /**
+             * Source
+             * @default ditto_feedback
+             * @constant
+             */
+            source: "ditto_feedback";
+            /** Weight */
+            weight?: number | string | null;
+        };
+        /** FeedbackTrackContributionResponse */
+        FeedbackTrackContributionResponse: {
+            contribution: components["schemas"]["FeedbackTrackContributionView"];
+            /** Created */
+            created: boolean;
+        };
+        /** FeedbackTrackContributionView */
+        FeedbackTrackContributionView: {
+            /**
+             * Contribution Id
+             * Format: uuid
+             */
+            contribution_id: string;
+            /** External Ref */
+            external_ref: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "report" | "follow_up" | "shipped";
+            /** Note */
+            note?: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "ditto_feedback";
+            /** Weight */
+            weight?: string | null;
+        };
+        /**
+         * FeedbackTrackMeResponse
+         * @description The signed-in miner's contributions, via the account linked to the hotkey.
+         */
+        FeedbackTrackMeResponse: {
+            /** Contributions */
+            contributions: components["schemas"]["FeedbackTrackContributionView"][];
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Ditto User Id */
+            ditto_user_id?: string | null;
+            /** Linked */
+            linked: boolean;
+        };
+        /**
          * FleetRelease
          * @description Which build a screener worker is, as distinct from which policy it screens.
          *
@@ -16687,6 +16922,95 @@ export interface components {
             ttl_seconds: number;
             /** User Code */
             user_code: string;
+        };
+        /**
+         * MinerDittoLinkAttemptResponse
+         * @description One attempt. ``identity_verified`` means Ditto signed someone in but
+         *     that person has not yet accepted the hotkey; ``authenticated`` carries who
+         *     accepted, so the miner can confirm the pairing before anything is written.
+         *     Identity fields are only present once the Ditto side has accepted.
+         */
+        MinerDittoLinkAttemptResponse: {
+            /**
+             * Attempt Id
+             * Format: uuid
+             */
+            attempt_id: string;
+            /** Ditto Email */
+            ditto_email?: string | null;
+            /** Ditto User Id */
+            ditto_user_id?: string | null;
+            /** Error */
+            error?: string | null;
+            link?: components["schemas"]["MinerDittoLinkView"] | null;
+            /** Miner Hotkey */
+            miner_hotkey?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "identity_verified" | "authenticated" | "linked" | "failed" | "expired";
+        };
+        /** MinerDittoLinkResponse */
+        MinerDittoLinkResponse: {
+            /** Enabled */
+            enabled: boolean;
+            link?: components["schemas"]["MinerDittoLinkView"] | null;
+        };
+        /** MinerDittoLinkStartRequest */
+        MinerDittoLinkStartRequest: {
+            /**
+             * Client
+             * @default dashboard
+             * @enum {string}
+             */
+            client: "dashboard" | "cli";
+            /** Return To */
+            return_to?: string | null;
+        };
+        /** MinerDittoLinkStartResponse */
+        MinerDittoLinkStartResponse: {
+            /**
+             * Attempt Id
+             * Format: uuid
+             */
+            attempt_id: string;
+            /** Authorize Url */
+            authorize_url: string;
+            /** Expires In */
+            expires_in: number;
+        };
+        /**
+         * MinerDittoLinkView
+         * @description One hotkey's Ditto account link as the miner sees it.
+         *
+         *     ``ditto_user_id`` is the verified OIDC subject; nothing here was supplied
+         *     by the caller.
+         */
+        MinerDittoLinkView: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Ditto Email */
+            ditto_email?: string | null;
+            /** Ditto User Id */
+            ditto_user_id: string;
+            /**
+             * Linked Via
+             * @enum {string}
+             */
+            linked_via: "dashboard" | "cli";
+            /** Miner Coldkey */
+            miner_coldkey?: string | null;
+            /** Miner Hotkey */
+            miner_hotkey: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** MinerFeeDay */
         MinerFeeDay: {
@@ -19169,6 +19493,22 @@ export interface components {
              * @default 0
              */
             shared_seed_confirmations: number;
+        };
+        /**
+         * PublicFeedbackTrackResponse
+         * @description Counts only. Never the account, the email, or the report text.
+         */
+        PublicFeedbackTrackResponse: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Linked */
+            linked: boolean;
+            /** Miner Hotkey */
+            miner_hotkey: string;
+            /** Total */
+            total: number;
         };
         /**
          * PublicHealthResponse
@@ -31520,6 +31860,41 @@ export interface operations {
             };
         };
     };
+    record_contribution_api_v1_feedback_track_contributions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackTrackContributionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackTrackContributionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     proxy_chat_completions_api_v1_inference_chat_completions_post: {
         parameters: {
             query?: never;
@@ -31887,6 +32262,159 @@ export interface operations {
             };
         };
     };
+    current_link_api_v1_me_ditto_link_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinerDittoLinkResponse"];
+                };
+            };
+        };
+    };
+    unlink_api_v1_me_ditto_link_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    link_attempt_api_v1_me_ditto_link_attempts__attempt_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attempt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinerDittoLinkAttemptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_link_api_v1_me_ditto_link_attempts__attempt_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attempt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinerDittoLinkAttemptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_link_api_v1_me_ditto_link_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MinerDittoLinkStartRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinerDittoLinkStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_contributions_api_v1_me_feedback_track_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackTrackMeResponse"];
+                };
+            };
+        };
+    };
     my_reviews_api_v1_me_reviews_get: {
         parameters: {
             query?: never;
@@ -32075,6 +32603,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MinerDeviceStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_link_page_api_v1_miner_auth_ditto_accept_get: {
+        parameters: {
+            query: {
+                attempt: string;
+                t: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_link_decide_api_v1_miner_auth_ditto_accept_post: {
+        parameters: {
+            query: {
+                attempt: string;
+                t: string;
+                decision: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -32778,6 +33371,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_contributions_api_v1_public_feedback_track__hotkey__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hotkey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicFeedbackTrackResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
