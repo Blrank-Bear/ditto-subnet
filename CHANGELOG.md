@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.263.0 (2026-09-13)
+
+### Chores
+
+- **coding**: Retire the phase-6 canary helper route
+  ([#1822](https://github.com/ditto-assistant/ditto-subnet/pull/1822),
+  [`6e63bc7`](https://github.com/ditto-assistant/ditto-subnet/commit/6e63bc7efb75b53b84265d5d2b7ade17dfe663db))
+
+### Documentation
+
+- **github**: Record that a conflicting PR runs no workflows
+  ([#1821](https://github.com/ditto-assistant/ditto-subnet/pull/1821),
+  [`f2cc7cd`](https://github.com/ditto-assistant/ditto-subnet/commit/f2cc7cd0c12f105e22f9a978c5b99ca420d91d9f))
+
+### Features
+
+- **preview**: Explain a skipped dashboard preview on the PR
+  ([#1820](https://github.com/ditto-assistant/ditto-subnet/pull/1820),
+  [`e387c88`](https://github.com/ditto-assistant/ditto-subnet/commit/e387c8810a6c623d54f5e28b5ff72e85d371f274))
+
+
 ## v0.262.0 (2026-09-13)
 
 ### Features
