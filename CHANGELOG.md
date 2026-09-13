@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.261.0 (2026-09-13)
+
+### Features
+
+- Bound primary screener resources for isolated CI capacity
+  ([#1817](https://github.com/ditto-assistant/ditto-subnet/pull/1817),
+  [`e21aa59`](https://github.com/ditto-assistant/ditto-subnet/commit/e21aa593345e751d84586486e2653ca11d40fc5a))
+
+
 ## v0.260.2 (2026-09-13)
 
 ### Bug Fixes
