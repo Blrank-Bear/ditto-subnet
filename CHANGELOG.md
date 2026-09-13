@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.260.0 (2026-09-13)
+
+### Features
+
+- **platform**: Land-inactive plumbing to activate Sign in with Ditto and the Ditto Router upstream
+  ([#1809](https://github.com/ditto-assistant/ditto-subnet/pull/1809),
+  [`7504f74`](https://github.com/ditto-assistant/ditto-subnet/commit/7504f740413cc940964d3829659c928f804f226e))
+
+
 ## v0.259.0 (2026-09-13)
 
 ### Features
