@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.267.0 (2026-09-14)
+
+### Features
+
+- **platform**: Publish screening policy v13 as activation-ready
+  ([#1891](https://github.com/ditto-assistant/ditto-subnet/pull/1891),
+  [`6377491`](https://github.com/ditto-assistant/ditto-subnet/commit/6377491812e792f7d02c64eae5f5eef972793ef6))
+
+
 ## v0.266.1 (2026-09-14)
 
 ### Bug Fixes
