@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.263.1 (2026-09-14)
+
+### Bug Fixes
+
+- **screener**: Preserve rootless user hierarchy in CI partition
+  ([#1869](https://github.com/ditto-assistant/ditto-subnet/pull/1869),
+  [`7127a53`](https://github.com/ditto-assistant/ditto-subnet/commit/7127a539c4c2c0d74ec7686d5a16201c5179b138))
+
+
 ## v0.263.0 (2026-09-13)
 
 ### Chores
