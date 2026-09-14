@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.266.1 (2026-09-14)
+
+### Bug Fixes
+
+- **screener**: Unblock bounded fanout shadow rollout
+  ([#1900](https://github.com/ditto-assistant/ditto-subnet/pull/1900),
+  [`b8f8846`](https://github.com/ditto-assistant/ditto-subnet/commit/b8f8846c5979fe8f2f696efc853908a7a469d9ae))
+
+
 ## v0.266.0 (2026-09-14)
 
 ### Features
