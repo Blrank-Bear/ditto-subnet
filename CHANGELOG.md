@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.267.4 (2026-09-14)
+
+### Bug Fixes
+
+- **screener**: Honor official opaque provenance in v13
+  ([#1914](https://github.com/ditto-assistant/ditto-subnet/pull/1914),
+  [`f99f528`](https://github.com/ditto-assistant/ditto-subnet/commit/f99f52840da18059a69b10ae26c5ce96488fe4fa))
+
+
 ## v0.267.3 (2026-09-14)
 
 ### Bug Fixes
