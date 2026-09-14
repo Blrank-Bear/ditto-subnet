@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.265.0 (2026-09-14)
+
+### Features
+
+- **backroom**: Batch ATH rulings tool with preview and guarded execute
+  ([#1875](https://github.com/ditto-assistant/ditto-subnet/pull/1875),
+  [`d237b87`](https://github.com/ditto-assistant/ditto-subnet/commit/d237b87a273cdca78380efb35cc2f3fbd4b366a0))
+
+
 ## v0.264.0 (2026-09-14)
 
 ### Bug Fixes
