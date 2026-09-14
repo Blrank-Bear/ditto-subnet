@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.266.0 (2026-09-14)
+
+### Features
+
+- **screener**: Add bounded two-stage fanout shadow pilot
+  ([#1893](https://github.com/ditto-assistant/ditto-subnet/pull/1893),
+  [`aaea7e8`](https://github.com/ditto-assistant/ditto-subnet/commit/aaea7e8ec1997aae8888875de589916aae99af33))
+
+
 ## v0.265.1 (2026-09-14)
 
 ### Bug Fixes
