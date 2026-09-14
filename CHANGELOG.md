@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.267.3 (2026-09-14)
+
+### Bug Fixes
+
+- **screener**: Bound shadow invariant summaries for policy 13
+  ([#1910](https://github.com/ditto-assistant/ditto-subnet/pull/1910),
+  [`f5512ac`](https://github.com/ditto-assistant/ditto-subnet/commit/f5512ac417e3cbcdc0f09e078cb9058ad29cd11d))
+
+
 ## v0.267.2 (2026-09-14)
 
 ### Bug Fixes
