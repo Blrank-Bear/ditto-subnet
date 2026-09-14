@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.265.1 (2026-09-14)
+
+### Bug Fixes
+
+- **screener**: Avoid claim lock convoys
+  ([`5748b29`](https://github.com/ditto-assistant/ditto-subnet/commit/5748b290f92449b0f3f79fdb3b8260e54c34f3fc))
+
+
 ## v0.265.0 (2026-09-14)
 
 ### Features
