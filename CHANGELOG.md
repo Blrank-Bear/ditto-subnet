@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.267.5 (2026-09-14)
+
+### Bug Fixes
+
+- **screener**: Keep malformed adjudication out of tool replay
+  ([#1916](https://github.com/ditto-assistant/ditto-subnet/pull/1916),
+  [`910bc9f`](https://github.com/ditto-assistant/ditto-subnet/commit/910bc9fcab5bca268c75674949072bb968179154))
+
+
 ## v0.267.4 (2026-09-14)
 
 ### Bug Fixes
