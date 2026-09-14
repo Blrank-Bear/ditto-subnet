@@ -2,6 +2,49 @@
 
 <!-- version list -->
 
+## v0.264.0 (2026-09-14)
+
+### Bug Fixes
+
+- Restore two screeners and avoid rate-limited provider preference
+  ([#1878](https://github.com/ditto-assistant/ditto-subnet/pull/1878),
+  [`4bb7601`](https://github.com/ditto-assistant/ditto-subnet/commit/4bb760199c25730b56efcae44346ed186a35fd1f))
+
+- **platform**: Confirm king weights from the public cache
+  ([#1877](https://github.com/ditto-assistant/ditto-subnet/pull/1877),
+  [`d75c13c`](https://github.com/ditto-assistant/ditto-subnet/commit/d75c13cb5ea47de2e388c5ecda5507c29a815e6b))
+
+- **screener**: Allow bounded reasoning time for final verdict
+  ([#1886](https://github.com/ditto-assistant/ditto-subnet/pull/1886),
+  [`77b09f4`](https://github.com/ditto-assistant/ditto-subnet/commit/77b09f4f4889620b34fd3c9a6dbb848029613d59))
+
+### Chores
+
+- **tests**: Unblock screener release formatting gate
+  ([#1879](https://github.com/ditto-assistant/ditto-subnet/pull/1879),
+  [`0ceee76`](https://github.com/ditto-assistant/ditto-subnet/commit/0ceee76999e08619a8bdc6f8fd233a21d0bd5acf))
+
+### Documentation
+
+- **skills**: Record the 2026-09 LongMem shadow rollout and its reusable boundaries
+  ([#1874](https://github.com/ditto-assistant/ditto-subnet/pull/1874),
+  [`9d3b6f5`](https://github.com/ditto-assistant/ditto-subnet/commit/9d3b6f5ef7ee01da3ec38ee38e552f9fbe7f455d))
+
+### Features
+
+- **platform**: Pin the validator ledger once per chain epoch
+  ([#1766](https://github.com/ditto-assistant/ditto-subnet/pull/1766),
+  [`5c04ffd`](https://github.com/ditto-assistant/ditto-subnet/commit/5c04ffdb9a1fa7fa082d074c7c789fb9b9ae86c4))
+
+- **validator**: Defend the KOTH crown from the served incumbent
+  ([#1767](https://github.com/ditto-assistant/ditto-subnet/pull/1767),
+  [`9c7de98`](https://github.com/ditto-assistant/ditto-subnet/commit/9c7de9882ad4b681d6144c001efedd608e8d898e))
+
+- **validator**: Report the folded epoch pin and match vectors to it
+  ([#1775](https://github.com/ditto-assistant/ditto-subnet/pull/1775),
+  [`6e7c530`](https://github.com/ditto-assistant/ditto-subnet/commit/6e7c530db5264964cb40afe5f0719eec0df74112))
+
+
 ## v0.263.1 (2026-09-14)
 
 ### Bug Fixes
