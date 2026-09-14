@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v0.267.1 (2026-09-14)
+
+### Bug Fixes
+
+- **screener**: Honor bounded shadow request deadlines
+  ([#1906](https://github.com/ditto-assistant/ditto-subnet/pull/1906),
+  [`62d4b60`](https://github.com/ditto-assistant/ditto-subnet/commit/62d4b60635b08b895c5631eab5e39681444a663c))
+
+- **screener**: Require final adjudication for every shadow review
+  ([#1903](https://github.com/ditto-assistant/ditto-subnet/pull/1903),
+  [`2dc361b`](https://github.com/ditto-assistant/ditto-subnet/commit/2dc361b8a57deffb4deb4d02bd60cb10e1569f51))
+
+- **screener**: Restore four persistent workers
+  ([#1890](https://github.com/ditto-assistant/ditto-subnet/pull/1890),
+  [`17e4d1e`](https://github.com/ditto-assistant/ditto-subnet/commit/17e4d1ea69c878e8a639e1842addef88e929469c))
+
+### Documentation
+
+- Correct the miner evaluation fee to the live 0.1 TAO
+  ([#1894](https://github.com/ditto-assistant/ditto-subnet/pull/1894),
+  [`cbb43fd`](https://github.com/ditto-assistant/ditto-subnet/commit/cbb43fdd672384e2777a6e732ed33f4969ef2f09))
+
+
 ## v0.267.0 (2026-09-14)
 
 ### Features
