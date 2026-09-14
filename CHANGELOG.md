@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.267.2 (2026-09-14)
+
+### Bug Fixes
+
+- **screener**: Recover malformed shadow adjudication arguments
+  ([#1907](https://github.com/ditto-assistant/ditto-subnet/pull/1907),
+  [`5f84f37`](https://github.com/ditto-assistant/ditto-subnet/commit/5f84f37742c1bf29e89ea4e2a8172625eb74db9c))
+
+
 ## v0.267.1 (2026-09-14)
 
 ### Bug Fixes
