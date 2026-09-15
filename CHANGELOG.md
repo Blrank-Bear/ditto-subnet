@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.267.7 (2026-09-15)
+
+### Bug Fixes
+
+- **screener**: Communicate remaining shadow request deadline
+  ([#1922](https://github.com/ditto-assistant/ditto-subnet/pull/1922),
+  [`e5aad9f`](https://github.com/ditto-assistant/ditto-subnet/commit/e5aad9f233767f11849da8d351f6541b9adc9880))
+
+
 ## v0.267.6 (2026-09-15)
 
 ### Bug Fixes
