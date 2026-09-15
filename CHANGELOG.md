@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.268.1 (2026-09-15)
+
+### Bug Fixes
+
+- **backroom**: Accept policy v13 invariant assessments
+  ([#1931](https://github.com/ditto-assistant/ditto-subnet/pull/1931),
+  [`6f6e9e6`](https://github.com/ditto-assistant/ditto-subnet/commit/6f6e9e6f35e39082d3607ca7d79b2acca4452931))
+
+
 ## v0.268.0 (2026-09-15)
 
 ### Features
