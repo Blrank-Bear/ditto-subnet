@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.267.6 (2026-09-15)
+
+### Bug Fixes
+
+- **screener**: Tighten shadow fan-out discovery and adjudication
+  ([#1918](https://github.com/ditto-assistant/ditto-subnet/pull/1918),
+  [`ada9d60`](https://github.com/ditto-assistant/ditto-subnet/commit/ada9d604872a4492a16523b9efc94ee8e9fdfead))
+
+
 ## v0.267.5 (2026-09-14)
 
 ### Bug Fixes
