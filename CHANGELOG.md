@@ -2,6 +2,16 @@
 
 <!-- version list -->
 
+## v0.268.0 (2026-09-15)
+
+### Features
+
+- Make the SN118 router shadow track score LIVE end-to-end (replay default + offload seam, published
+  ledger, leaderboard shadow badge)
+  ([#1917](https://github.com/ditto-assistant/ditto-subnet/pull/1917),
+  [`f88f259`](https://github.com/ditto-assistant/ditto-subnet/commit/f88f259f3fcedad7a40c4b9c50922d4a64374c49))
+
+
 ## v0.267.7 (2026-09-15)
 
 ### Bug Fixes
