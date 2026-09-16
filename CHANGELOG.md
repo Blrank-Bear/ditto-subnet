@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.274.0 (2026-09-16)
+
+### Features
+
+- **coding**: Derive and launch-check hosted-v2 task profiles
+  ([#1865](https://github.com/ditto-assistant/ditto-subnet/pull/1865),
+  [`1dcea85`](https://github.com/ditto-assistant/ditto-subnet/commit/1dcea85298034ffabcf0836527261a9aec20c5d7))
+
+- **infra**: Default-off native coding PostgreSQL environment materialization
+  ([#1888](https://github.com/ditto-assistant/ditto-subnet/pull/1888),
+  [`127126d`](https://github.com/ditto-assistant/ditto-subnet/commit/127126dd325d09b73f9dc987dfc5baeb42b4e45f))
+
+- **infra**: Stable custody install and per-run native-v2 custody lifecycle
+  ([#1860](https://github.com/ditto-assistant/ditto-subnet/pull/1860),
+  [`137e574`](https://github.com/ditto-assistant/ditto-subnet/commit/137e574d815b039c3995ae404978f2bb6e7cc5c9))
+
+
 ## v0.273.1 (2026-09-16)
 
 ### Bug Fixes
