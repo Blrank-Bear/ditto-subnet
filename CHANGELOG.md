@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.273.0 (2026-09-16)
+
+### Documentation
+
+- Route Backroom reviews to the applicable v13 policy
+  ([#1942](https://github.com/ditto-assistant/ditto-subnet/pull/1942),
+  [`e4efec3`](https://github.com/ditto-assistant/ditto-subnet/commit/e4efec389ec03341ef3d71665dd36352d4d2ddb5))
+
+### Features
+
+- **bench**: Integrate the v13 pre-activation contract
+  ([#1937](https://github.com/ditto-assistant/ditto-subnet/pull/1937),
+  [`e1a8fa2`](https://github.com/ditto-assistant/ditto-subnet/commit/e1a8fa2b786143d4c74c57277d75a1cb57a9d4fb))
+
+- **platform**: Add isolated singleton benchmark canary leases
+  ([#1943](https://github.com/ditto-assistant/ditto-subnet/pull/1943),
+  [`f1e067d`](https://github.com/ditto-assistant/ditto-subnet/commit/f1e067d4f6084a5b963cc2b46a476faea87db4d4))
+
+
 ## v0.272.0 (2026-09-16)
 
 ### Features
