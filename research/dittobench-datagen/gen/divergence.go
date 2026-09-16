@@ -101,6 +101,13 @@ func buildParserDivergenceForVersion(seed int64, count int, benchVersion int) ([
 		return nil, nil
 	}
 	r := v12DivergenceRand(seed)
+	// v13 (#1827): the fixed "2026-02-<ordinal>T<8+ordinal>:15" pattern named
+	// this family to any /seed reader. A seeded business-hours timeline
+	// replaces it; v12 keeps its frozen bytes.
+	var timeline *protocol.OpaqueTimeline
+	if benchVersion >= protocol.BenchVersionV13 {
+		timeline = protocol.NewOpaqueTimeline(seed, "v13-parser-divergence")
+	}
 	rounds := count / 4
 	cases := make([]StagedCase, 0, count)
 	pairs := make([]protocol.MemoryPair, 0, count)
@@ -115,10 +122,14 @@ func buildParserDivergenceForVersion(seed int64, count int, benchVersion int) ([
 		caseID := protocol.OpaqueCaseID(seed, "v12-parser-divergence", ordinal)
 		pairID := protocol.OpaqueCaseID(seed, "v12-parser-divergence-pair", ordinal)
 		ordinal++
+		timestamp := fmt.Sprintf("2026-02-%02dT%02d:15:00Z", 1+(ordinal%27), 8+(ordinal%12))
+		if timeline != nil {
+			timestamp = timeline.Next()
+		}
 		pair := protocol.MemoryPair{
 			PairID:    pairID,
 			SessionID: protocol.OpaqueCaseID(seed, "v12-parser-divergence-session", ordinal),
-			Timestamp: fmt.Sprintf("2026-02-%02dT%02d:15:00Z", 1+(ordinal%27), 8+(ordinal%12)),
+			Timestamp: timestamp,
 			Prompt:    prompt,
 			Response:  response,
 		}
@@ -164,12 +175,23 @@ func buildParserDivergenceForVersion(seed int64, count int, benchVersion int) ([
 		project := humandata.Surname(r, 3*ordinal) + " " + v12ProjectSuffixes[r.Intn(len(v12ProjectSuffixes))]
 		hypoDollars := 3000 + r.Intn(7000)
 		realDollars := 500 + r.Intn(2500)
-		add(round, QTParserDivergenceHypothetical,
-			fmt.Sprintf("Note on the %s invoice: if it had been approved it would have come to $%d, but it was rejected. The amount actually billed is $%d.", project, hypoDollars, realDollars),
-			"Noted — I'll record the amount that was actually billed.",
-			fmt.Sprintf("What was actually billed on the %s invoice?", project),
-			fmt.Sprintf("%d", realDollars*100), fmt.Sprintf("%d", hypoDollars*100), protocol.AnswerMoney,
-			append([]string{project}, strings.Fields(project)...))
+		if benchVersion >= protocol.BenchVersionV13 {
+			// Keep the hypothetical-vs-actual reasoning, without spending the
+			// monetary budget already reserved for invoice temporal twins.
+			add(round, QTParserDivergenceHypothetical,
+				fmt.Sprintf("Note on the %s event: if the larger venue had been approved we would have booked %d seats, but it was rejected. The number actually booked is %d seats.", project, hypoDollars, realDollars),
+				"Noted — I'll record the seats that were actually booked.",
+				fmt.Sprintf("How many seats were actually booked for the %s event?", project),
+				fmt.Sprintf("%d", realDollars), fmt.Sprintf("%d", hypoDollars), protocol.AnswerNumber,
+				append([]string{project}, strings.Fields(project)...))
+		} else {
+			add(round, QTParserDivergenceHypothetical,
+				fmt.Sprintf("Note on the %s invoice: if it had been approved it would have come to $%d, but it was rejected. The amount actually billed is $%d.", project, hypoDollars, realDollars),
+				"Noted — I'll record the amount that was actually billed.",
+				fmt.Sprintf("What was actually billed on the %s invoice?", project),
+				fmt.Sprintf("%d", realDollars*100), fmt.Sprintf("%d", hypoDollars*100), protocol.AnswerMoney,
+				append([]string{project}, strings.Fields(project)...))
+		}
 
 		// ── Reported / unreliable speech ──────────────────────────────────────
 		narrator := humandata.GivenName(r, 4*ordinal)

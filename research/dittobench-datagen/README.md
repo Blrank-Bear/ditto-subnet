@@ -104,11 +104,19 @@ moves again with every later v13 lever. For the public full-profile seed
 | 9 (pre-activation) | `2027-01-01T00:00:00Z` | `b12edd3649dece3af415ad289a24a1a8615b7d906773e718ee637da14cbd541f` |
 | 10 (pre-activation) | `2027-02-01T00:00:00Z` | `04d6f3d9099dd9922f931d9a6f90caffd18e70d041d074986d68752ddf928a0f` |
 | 12 (pre-activation) | `2027-04-01T00:00:00Z` | `775e0eaf2d41c0cf4647c51f19c56ecc3bb6db37a780538bb7db745811ab91bb` |
-| 13 (pre-activation) | `2027-05-01T00:00:00Z` | `80e76383a7d1ee8b1080a5a0a1526387faadf620578e22f0690dc5ae5a1709b6` |
+| 13 (pre-activation) | `2027-05-01T00:00:00Z` | `4ac6913c55b59a8ed4ed99e05278de4d003f1161ce8a711afb9eb6b469e535db` |
 
 Each is regenerated and asserted by CI (`TestV2KnownVector` and friends), so a
 value here that disagrees with `cmd/generate` is a bug in this table, not in the
 generator.
+
+v13 (epoch `2027-05-01T00:00:00Z`) generates deterministically but has **no
+canonical vector yet**: a known vector is an immutable contract, and the v13
+hash is pinned only after the /seed label-leak fix (#1827) and the pending
+generator swaps land (see `docs/bench-versions.md`, Bench v13). Until then
+`TestSameSeedSameBytes` covers v13 determinism and `TestV13PublicSeedEnvelope`
+the published envelope shape. Audit the v13 memory mix with
+`go run ./cmd/mixaudit -bench-version 13 -seeds 40`.
 
 See [docs/bench-versions.md](docs/bench-versions.md) for what each contract is,
 what changed in v4, and how module releases are versioned relative to it.
@@ -156,6 +164,19 @@ than keeping their own copies.
   `v13-1`); `-release-gate` fails closed when a supported version or grading
   policy floor owns no bank.
 
+- `cmd/mixaudit`: the Bench v13 memory-mix histogram and envelope gate. Per seed
+  it classifies every memory case by family, semantic domain, answer kind, head
+  operation, monetary exposure (direct kinds AND typed list items weighted by
+  their fraction of credit), arithmetic, computed-vs-verbatim, language,
+  twin/metamorphic relation, and gate exposure; JSON or the study table format.
+  `-bench-version 12 -seed 123456789` reproduces issue #1529's 117/143/50.9%.
+- `cmd/parserprobe`: the generator-inverse harness (GIH) and seed-trained router,
+  the model-free adversaries every v13 surface claim is measured against. It
+  parses the /seed records and questions with the repository's own frames,
+  evaluates the public oracle semantics, launders the value through one
+  completion, and reports family-id rate, answer rate, and composite under the
+  real grader per seed and slice. Near-oracle on a pass-off artifact is the
+  published baseline; `-artifact` probes a surface-passed artifact.
 - `cmd/gstudy`: the offline reliability analyzer. Given a JSONL of scored runs
   it reports a G-study variance decomposition (seed vs. item vs. residual) and
   per-category difficulty/discrimination estimates, flagging saturated and floor

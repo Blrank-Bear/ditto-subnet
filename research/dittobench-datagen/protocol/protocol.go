@@ -147,19 +147,23 @@ type ToolCase struct {
 	// aliases, people, products, and other join keys out of the typo projector;
 	// it never enters the public artifact or harness request.
 	WritingProtected []string `json:"-"`
+	// TwinGroup (bench_version 13, grader-only) is the pair identity of a tool
+	// decision twin: the two (or more) cases the generator paired share one
+	// TwinGroup, and TwinRelation names how. It is a PAIR identity, never the
+	// family label -- Category is shared by every case of a family in a run,
+	// so keying the twin post-pass on it would collapse a whole family into one
+	// group. Unlike MemoryCase.TwinGroup it is never serialized: not in the
+	// hashed artifact, not on /seed or /run
+	// (gen.TestV13GraderOnlyFieldsNeverReachHarnessWire).
+	TwinGroup string `json:"-"`
 	// TwinRelation (bench_version 13, grader-only) names how this case is paired
-	// with its twin (see the TwinRelation constants); TwinGroup-style pairing
-	// identity for tool cases rides on Category plus this relation. Never
-	// serialized.
+	// with the other member(s) of its TwinGroup (see the TwinRelation
+	// constants). A case needs both TwinGroup and TwinRelation to be paired.
+	// Never serialized.
 	TwinRelation string `json:"-"`
 	// Restraint (bench_version 13, grader-only) is set on a case whose correct
 	// outcome is restraint rather than a call. Never serialized.
 	Restraint *RestraintClaim `json:"-"`
-	// TwinGroup (bench_version 13, grader-only) is the restraint-group identity
-	// shared by the distributionally matched members of one decision_twin
-	// group (issue #1846). The group rule scores the members together; the
-	// members are never adjacent and never surface-identical. Never serialized.
-	TwinGroup string `json:"-"`
 	// ForbiddenTools (bench_version 13, grader-only) are catalog tools whose
 	// observed call zeroes the case even when every expected capability was
 	// also observed. It is how a state-dependent route punishes the "do both"
@@ -403,6 +407,8 @@ type MemoryCase struct {
 	// not on /seed or /run. gen.TestV13GraderOnlyFieldsNeverReachHarnessWire
 	// pins this.
 	Claims []Claim `json:"-"`
+	// TwinPairID pairs decision/as-of cases separately from invariance groups.
+	TwinPairID string `json:"-"`
 	// TwinRelation (bench_version 13, grader-only) names how this case is
 	// paired with the other member(s) of its TwinGroup (see the TwinRelation
 	// constants). Empty for the v5+ metamorphic phrasing twins, which remain
@@ -505,12 +511,16 @@ type RunRequest struct {
 	BenchVersion int    `json:"bench_version,omitempty"`
 	ToolEndpoint string `json:"tool_endpoint,omitempty"`
 	UserID       string `json:"user_id,omitempty"`
-	// InferenceBaseURL was a validator-minted, case-scoped v10 relay capability.
-	// The scorer no longer mints or sends one: exclusive per-case windows forced
-	// serial /run, so scoring overlaps cases on the process-wide session URL and
-	// leaves this field empty. It stays in the wire contract (harnesses fall back
-	// to their launch-configured base URL when it is absent, and the localstack
-	// model harness still honors it) for a restored per-case relay path.
+	// InferenceBaseURL was a validator-minted, case-scoped v10 relay capability;
+	// exclusive per-case windows forced serial /run, so v10..v12 scoring overlaps
+	// cases on the process-wide session URL and leaves it empty. From
+	// bench_version 13 the scorer sends `<gateway>/run/<case_id>`: the same
+	// source-bound broker route with the case NAMED in the path, which the
+	// broker reads as the case claim for claim-span attribution (equivalent to
+	// X-Ditto-Case-Id; never an admission input). A harness that builds its
+	// model client from this field per /run stays attributable at any
+	// concurrency; one that ignores it falls back to its launch-configured base
+	// URL and is attributable only while it is the sole case in flight.
 	InferenceBaseURL string `json:"inference_base_url,omitempty"`
 }
 
@@ -582,6 +592,82 @@ const (
 // execution was selected by the controlled model and then observed by the
 // validator. It is populated only by Bench v10+ scorers; historical report
 // bytes omit it.
+// ClaimProvenanceEvidence (bench_version 13) is the per-case record of the
+// claim-span provenance gate and the causal answer_in_prompt gate
+// (dittobench-api internal/scoregates text_provenance.go /
+// causal_dependence.go). The relay records, per attributed chat completion,
+// the hashed value tokens of the model's completion spans (message content,
+// tool_call arguments, structured-output fields) and of the harness-authored
+// request spans; the scorer checks the served, credited claim span against
+// them. Only counts and verdicts are published: the token hashes never leave
+// the scorer, so the record can neither reproduce a completion nor leak the
+// answer key.
+type ClaimProvenanceEvidence struct {
+	// Completions is how many chat completions the relay attributed to exactly
+	// this case. nil when attribution is incomplete (a completion overlapped
+	// several in-flight cases with no verified claim) or no ledger exists.
+	Completions *int `json:"completions,omitempty"`
+	// UnattributedCalls is how many chat completions the harness made while
+	// this case was in flight alongside other cases WITHOUT naming a case (no
+	// case-scoped inference_base_url, no X-Ditto-Case-Id). Each one left this
+	// case's ledger incomplete and is charged to the harness
+	// (claim_provenance_unattributed_call), not to the relay.
+	UnattributedCalls int `json:"unattributed_calls,omitempty"`
+	// ToolResults is how many tool_endpoint results the validator served the
+	// case; their values are exempt from the causal gate.
+	ToolResults int `json:"tool_results"`
+	// ClaimTokens is how many canonical value tokens the credited claim span
+	// carried. Zero means no checkable claim (not applicable).
+	ClaimTokens int `json:"claim_tokens"`
+	// Complete is true when every completion made while the case was in flight
+	// was attributed to exactly one case and no capture bound was hit. The gate
+	// fails OPEN when false.
+	Complete bool `json:"complete"`
+	// ModelEmitted is the claim-span verdict: true when every claim token is in
+	// the union of the case's completion spans. nil when unsettled or not
+	// applicable.
+	ModelEmitted *bool `json:"model_emitted,omitempty"`
+	// AnswerInPrompt is the causal verdict: true when every claim token was
+	// harness-authored into a prompt before any completion produced it and is
+	// covered by no delivered record or tool result. nil when unsettled or not
+	// applicable.
+	AnswerInPrompt *bool `json:"answer_in_prompt,omitempty"`
+	// Posture is the gate posture the run scored under ("shadow" or "enforce").
+	Posture string `json:"posture"`
+	// Findings names the outcomes, sorted and de-duplicated
+	// (scoregates.SortedFindings), drawn from the scoregates.Finding* constants:
+	// served_text_not_model_emitted, answer_in_prompt, no_model_completion,
+	// claim_not_applicable, claim_provenance_incomplete,
+	// claim_provenance_unattributed_call, claim_provenance_unavailable,
+	// claim_provenance_zeroed.
+	Findings []string `json:"findings,omitempty"`
+}
+
+// ClaimProvenanceSummary (bench_version 13) aggregates the per-case
+// ClaimProvenanceEvidence for one run. AttributionCoverageBPS is this
+// validator's half of the enforce precondition: the share of memory cases whose
+// completions were all attributable.
+type ClaimProvenanceSummary struct {
+	Posture                string `json:"posture"`
+	MemoryCases            int    `json:"memory_cases"`
+	AttributedCases        int    `json:"attributed_cases"`
+	ApplicableCases        int    `json:"applicable_cases"`
+	SettledCases           int    `json:"settled_cases"`
+	NotModelEmittedCases   int    `json:"not_model_emitted_cases"`
+	AnswerInPromptCases    int    `json:"answer_in_prompt_cases"`
+	NoModelCompletionCases int    `json:"no_model_completion_cases"`
+	// UnsettledCases counts credited memory cases with no settled verdict:
+	// unavailable or relay-incomplete ledgers plus UnattributedCallCases.
+	UnsettledCases int `json:"unsettled_cases"`
+	// UnattributedCallCases is the subset of UnsettledCases the HARNESS caused
+	// by making case-less completions while several cases were in flight; it
+	// is the operator's read of how far the harness is from the v13 attribution
+	// contract, and under enforce those cases are zeroed.
+	UnattributedCallCases  int `json:"unattributed_call_cases"`
+	ZeroedCases            int `json:"zeroed_cases"`
+	AttributionCoverageBPS int `json:"attribution_coverage_bps"`
+}
+
 type ToolProvenanceEvidence struct {
 	ModelEmitted             int      `json:"model_emitted"`
 	EndpointAttempts         int      `json:"endpoint_attempts"`
@@ -590,6 +676,162 @@ type ToolProvenanceEvidence struct {
 	ModelSelectedNotExecuted int      `json:"model_selected_not_executed"`
 	Complete                 bool     `json:"complete"`
 	Findings                 []string `json:"findings,omitempty"`
+}
+
+// CatalogEvidence (bench_version 13) is trusted, per-case relay evidence of
+// what the harness OFFERED the controlled model, not only what the model chose.
+// The ticket-bound inference broker parses the request side of every successful
+// chat completion it forwards -- the tools[] catalog (names plus a digest of
+// each tool's description and parameter schema), tool_choice, and the
+// harness-authored system/prefill spans (as a digest) -- and pairs it with the
+// model-emitted tool calls of the response. Only metadata is kept: no prompt,
+// no completion, no tool description text, so the record can neither reproduce
+// the prompt nor leak the answer key. It is populated only by Bench v13+
+// scorers; historical report bytes omit it.
+//
+// Attribution is exact or absent. A completion is booked on the case whose
+// exclusive window, harness-claimed X-Ditto-Case-Id (membership-checked against
+// the cases in flight, never verified further), or sole in-flight /run admitted
+// it; a completion the broker cannot attribute to exactly one case is booked
+// run-wide and marks every case then in flight incomplete (CompletionsTotal
+// nil, Complete false). A body the broker could not parse also leaves the case
+// incomplete. The v13 catalog gate fails OPEN on an incomplete case: it zeroes
+// only on affirmative, attributed evidence, and under enforce only when every
+// claim-attributed completion is corroborated by a tool call the validator
+// consumed for the same case.
+type CatalogEvidence struct {
+	// CompletionsTotal is the number of successful chat completions attributed to
+	// this case. nil when the case's attribution is incomplete -- the fleet
+	// precondition for enforcing the catalog gate is that this field is non-nil on
+	// >= 99% of cases across >= 3 v13-capable validators.
+	CompletionsTotal *int `json:"completions_total"`
+	// CompletionsAfterLastToolResult counts the attributed completions made after
+	// the validator last served this case a tool_endpoint result (every completion
+	// when no tool result was served). It is the length of the deciding tail.
+	CompletionsAfterLastToolResult int `json:"completions_after_last_tool_result"`
+	// CompletionsWithCatalog counts the attributed completions on which at least
+	// one non-memory tool was CHOOSABLE: offered in tools[] and not suppressed by
+	// tool_choice ("none" offers nothing; a pinned tool_choice offers only the
+	// pinned tool).
+	CompletionsWithCatalog int `json:"completions_with_catalog"`
+	// CatalogPresent is true when at least one attributed completion left a
+	// non-empty choosable catalog after tool_choice.
+	CatalogPresent bool `json:"catalog_present"`
+	// ToolsOffered is the union, over the case's attributed completions, of the
+	// tools the model could choose, sorted by name. A tool offered under two
+	// different schema digests appears once per digest. Tools the request's
+	// tool_choice suppressed are not in it.
+	ToolsOffered []OfferedTool `json:"tools_offered,omitempty"`
+	// ToolChoiceSuppressedCompletions counts the attributed completions whose
+	// tool_choice made part or all of the sent tools[] unchoosable.
+	ToolChoiceSuppressedCompletions int `json:"tool_choice_suppressed_completions,omitempty"`
+	// ClaimAttributedCompletions counts the attributed completions booked on an
+	// X-Ditto-Case-Id claim rather than a window or a sole in-flight case;
+	// ClaimCorroboratedCompletions is how many of those emitted a tool call the
+	// validator later consumed for this same case.
+	ClaimAttributedCompletions   int `json:"claim_attributed_completions,omitempty"`
+	ClaimCorroboratedCompletions int `json:"claim_corroborated_completions,omitempty"`
+	// OverlapCompletions counts the unattributable completions admitted while
+	// this case was in flight (each also marks the case incomplete);
+	// OverlapCompletionsWithCatalog is how many of them left a non-empty
+	// choosable non-memory catalog. CatalogPresentLowerBound is true when every
+	// completion that could have served this case -- attributed or overlapping
+	// -- did so, and the capture is otherwise intact: a sound "the model was in
+	// a position to act" bound that never settles the case.
+	OverlapCompletions            int  `json:"overlap_completions,omitempty"`
+	OverlapCompletionsWithCatalog int  `json:"overlap_completions_with_catalog,omitempty"`
+	CatalogPresentLowerBound      bool `json:"catalog_present_lower_bound,omitempty"`
+	// Completions is the per-completion metadata in admission order, bounded by
+	// the broker's capture ceiling (Complete is false once the ceiling is hit).
+	Completions []CatalogCompletion `json:"completions,omitempty"`
+	// ModelEmittedToolCalls lists, in emission order, the tool names the model
+	// selected in this case's attributed completions (memory tools included).
+	ModelEmittedToolCalls []string `json:"model_emitted_tool_calls,omitempty"`
+	// HarnessSystemSpanSHA256 is the set of distinct digests of the
+	// harness-authored system/prefill spans across the case's completions, sorted.
+	// A prompt-level "do not call tools" suppression is recorded here as a
+	// citable digest, never as text.
+	HarnessSystemSpanSHA256 []string `json:"harness_system_span_sha256,omitempty"`
+	Complete                bool     `json:"complete"`
+	Findings                []string `json:"findings,omitempty"`
+}
+
+// OfferedTool is one tool the harness offered the model: its wire name and the
+// SHA-256 digest of the canonical JSON of {"description","parameters"} the
+// harness sent for it, so catalog fidelity (W10) is checkable against the
+// published catalog without storing the description text.
+type OfferedTool struct {
+	Name         string `json:"name"`
+	SchemaSHA256 string `json:"schema_sha256,omitempty"`
+}
+
+// CatalogCompletion is the relay metadata of one attributed chat completion.
+type CatalogCompletion struct {
+	// ToolsOffered is the number of tools in the request's catalog; ToolsChoosable
+	// is how many of them tool_choice left choosable (0 under "none", at most 1
+	// under a pinned tool).
+	ToolsOffered   int `json:"tools_offered"`
+	ToolsChoosable int `json:"tools_choosable"`
+	// AttributionSource is how the broker booked this completion on the case:
+	// "window" (exclusive case window), "in_flight" (sole /run case in flight),
+	// or "claim" (harness-sent X-Ditto-Case-Id naming a case in flight). A claim
+	// is membership-checked, not verified; ClaimCorroborated is true once a tool
+	// call this completion emitted was consumed by the validator for this case.
+	AttributionSource string `json:"attribution_source,omitempty"`
+	ClaimCorroborated bool   `json:"claim_corroborated,omitempty"`
+	// CatalogSHA256 is the SHA-256 over the sorted "name:schema_sha256" lines of
+	// the offered catalog; empty when no tool was offered.
+	CatalogSHA256 string `json:"catalog_sha256,omitempty"`
+	// ToolChoice is the normalized tool_choice the request carried: "" (absent),
+	// "auto", "none", "required", or "tool:<name>" for a pinned function.
+	ToolChoice string `json:"tool_choice,omitempty"`
+	// ModelEmittedToolCalls are the tool names the model selected in this
+	// completion's response, in order.
+	ModelEmittedToolCalls []string `json:"model_emitted_tool_calls,omitempty"`
+	// SystemSpanSHA256 is the digest over the harness-authored system/developer
+	// spans and any assistant prefill in this request; empty when none.
+	SystemSpanSHA256 string `json:"system_span_sha256,omitempty"`
+	// AfterLastToolResult is true when no tool_endpoint result was served to this
+	// case after this completion was admitted.
+	AfterLastToolResult bool `json:"after_last_tool_result"`
+}
+
+// CatalogGateSummary aggregates the Bench v13 catalog gate over a run's tool
+// cases. Counts, not rates, where they pool; CatalogSuppressionRate is the
+// run-level published metric (catalog absent / attributed cases with at least
+// one completion).
+type CatalogGateSummary struct {
+	Posture   string `json:"posture"`
+	ToolCases int    `json:"tool_cases"`
+	// AttributedCases counts tool cases with a non-nil completions_total (every
+	// completion attributable); IncompleteCaptureCases is how many of those were
+	// nonetheless not settled (truncated capture or an unparseable body) and so
+	// are excluded from the finding counts and the suppression rate.
+	// LowerBoundCases counts unattributed cases whose catalog_present_lower_bound
+	// held (every candidate completion offered an actionable catalog).
+	AttributedCases        int     `json:"attributed_cases"`
+	IncompleteCaptureCases int     `json:"incomplete_capture_cases,omitempty"`
+	LowerBoundCases        int     `json:"lower_bound_cases,omitempty"`
+	NoCompletionCases      int     `json:"no_completion_cases,omitempty"`
+	CatalogAbsentCases     int     `json:"catalog_absent_cases"`
+	CatalogSuppressionRate float64 `json:"catalog_suppression_rate"`
+	SafeHarborCases        int     `json:"safe_harbor_cases,omitempty"`
+	RestraintWithoutOffer  int     `json:"restraint_without_offer,omitempty"`
+	ExpectedToolNotOffered int     `json:"expected_tool_not_offered,omitempty"`
+	SwallowedModelCall     int     `json:"swallowed_model_call,omitempty"`
+	ZeroedCases            int     `json:"zeroed_cases,omitempty"`
+	// ClaimUncorroboratedCases counts settled zeroing findings that enforce
+	// withheld because the case's attribution rested on an uncorroborated
+	// X-Ditto-Case-Id claim; ClaimAttributedCompletions sums the per-case
+	// claim-attributed completions.
+	ClaimUncorroboratedCases   int `json:"claim_uncorroborated_cases,omitempty"`
+	ClaimAttributedCompletions int `json:"claim_attributed_completions,omitempty"`
+	// CompletionsTotal and CompletionsUnattributed are the session-wide relay
+	// counts; AttributionCoverageBPS is attributed tool cases over tool cases in
+	// basis points -- the per-validator half of the enforce precondition.
+	CompletionsTotal        int `json:"completions_total"`
+	CompletionsUnattributed int `json:"completions_unattributed"`
+	AttributionCoverageBPS  int `json:"attribution_coverage_bps"`
 }
 
 // ToolProvenanceSummary aggregates ToolProvenanceEvidence over a run. Counts
@@ -603,6 +845,118 @@ type ToolProvenanceSummary struct {
 	Matched                  int `json:"matched"`
 	Unmatched                int `json:"unmatched"`
 	ModelSelectedNotExecuted int `json:"model_selected_not_executed"`
+}
+
+// RelationStat (bench_version 13) is the mean score over the cases that carry
+// one twin or metamorphic relation after the twin post-pass, so a calibration
+// audit can read the per-relation profile straight off the report.
+type RelationStat struct {
+	Relation string  `json:"relation"`
+	Count    int     `json:"count"`
+	Mean     float64 `json:"mean"`
+}
+
+// TwinPostPassSummary (bench_version 13) is the report-level record of the
+// twin/pair post-pass (issue #1835). Posture is "observe" (notes and this
+// summary only; scores untouched) or "enforce". RuleRequested is the operator
+// selection; Rule is the rule that actually ran -- they differ only when the
+// calibration-measured honest concordant-error rate exceeded the fallback
+// threshold and the pass fell back from concordant-zero to pair-product.
+type TwinPostPassSummary struct {
+	Posture                   string  `json:"posture"`
+	RuleRequested             string  `json:"rule_requested"`
+	Rule                      string  `json:"rule"`
+	HonestConcordantErrorRate float64 `json:"honest_concordant_error_rate,omitempty"`
+	AutoFallback              bool    `json:"auto_fallback,omitempty"`
+	// TwinGroups / TwinGroupsConcordant count the fully delivered decision_twin
+	// and as_of_twin groups and how many showed an identical decision class /
+	// identical answer across every member.
+	TwinGroups           int `json:"twin_groups"`
+	TwinGroupsConcordant int `json:"twin_groups_concordant"`
+	// CounterfactualPairs / CounterfactualInsensitive count the fully delivered
+	// metamorphic base + causal_counterfactual pairs and how many answered the
+	// counterfactual member with the base member's answer.
+	CounterfactualPairs       int `json:"counterfactual_pairs"`
+	CounterfactualInsensitive int `json:"counterfactual_insensitive"`
+	// CasesAffected is how many cases the rule marked; CasesAffectedShare is
+	// that count over the scored population, so the dependent weight the pass
+	// can move is auditable against the envelope cascade cap. Applied is true
+	// only when the posture is enforce AND at least one score was changed.
+	CasesAffected      int            `json:"cases_affected"`
+	CasesAffectedShare float64        `json:"cases_affected_share,omitempty"`
+	Applied            bool           `json:"applied"`
+	PerRelation        []RelationStat `json:"per_relation,omitempty"`
+}
+
+// InferenceCostEvidence (bench_version 13) is one case's trusted inference cost
+// record from the ticket-bound broker plus the shadow cost factor (issue #1850).
+//
+// Completions counts successful chat completions (2xx with a body); provider
+// failures and 5xx retries are never counted. ChoicesTotal sums the `choices`
+// the provider returned, so `n` sampling is visible even when the request count
+// is small. OutputTokens sums provider-reported completion tokens over those
+// successful completions MINUS the provider-reported reasoning tokens
+// (`usage.completion_tokens_details.reasoning_tokens`, which OpenRouter folds
+// into `completion_tokens` on the agent-selected reasoning route); the
+// reasoning tokens are carried separately in ReasoningTokens so an honest
+// medium/high-reasoning ReAct step is not read as an over-budget answer.
+// UsageUnavailable counts completions whose provider response carried no
+// usage block. Attributed reports whether the broker could bind the
+// completions to this case exactly (a case-scoped capability route, a
+// verified harness claim, or a serial /run window); Attribution names how.
+// Unattributed completions are summarized at the run level, never guessed
+// onto a case.
+type InferenceCostEvidence struct {
+	Class            string `json:"class"`
+	Completions      int    `json:"completions"`
+	ChoicesTotal     int    `json:"choices_total"`
+	OutputTokens     uint64 `json:"output_tokens"`
+	ReasoningTokens  uint64 `json:"reasoning_tokens,omitempty"`
+	UsageUnavailable int    `json:"usage_unavailable,omitempty"`
+	Attributed       bool   `json:"attributed"`
+	Attribution      string `json:"attribution"`
+	BudgetTokens     uint64 `json:"budget_tokens"`
+	ExcessTokens     uint64 `json:"excess_tokens"`
+	FactorBPS        int    `json:"factor_bps"`
+}
+
+// InferenceCostBudget (bench_version 13) publishes one case class's budget: the
+// completion-equivalent count and the output-token budget it expands to.
+type InferenceCostBudget struct {
+	Class        string `json:"class"`
+	Completions  int    `json:"completions"`
+	OutputTokens uint64 `json:"output_tokens"`
+}
+
+// InferenceCostSummary (bench_version 13) is the run-level shadow record of the
+// cost factor. Posture is always "shadow" and Applied always false in v13.0:
+// the factor is reported per case and here, never multiplied into a score.
+//
+// AttributedShare (AttributedCases / Cases) and CasesByAttribution are the
+// honesty rails of the shadow reading: an unattributed case reports the full
+// factor by construction, so "factor 1.0 on >= 95% of cases" means nothing
+// unless the attributed share is itself high. A calibration must read the two
+// together and must separate self-claimed bookings (verified_claim) from the
+// broker-bound ones (case_capability, serial_run_case).
+type InferenceCostSummary struct {
+	Posture                    string                `json:"posture"`
+	Applied                    bool                  `json:"applied"`
+	CompletionEquivalentTokens uint64                `json:"completion_equivalent_tokens"`
+	FloorBPS                   int                   `json:"floor_bps"`
+	Budgets                    []InferenceCostBudget `json:"budgets"`
+	Cases                      int                   `json:"cases"`
+	AttributedCases            int                   `json:"attributed_cases"`
+	AttributedShare            float64               `json:"attributed_share"`
+	CasesByAttribution         map[string]int        `json:"cases_by_attribution,omitempty"`
+	CasesBelowFullFactor       int                   `json:"cases_below_full_factor"`
+	Completions                int                   `json:"completions"`
+	ChoicesTotal               int                   `json:"choices_total"`
+	OutputTokens               uint64                `json:"output_tokens"`
+	ReasoningTokens            uint64                `json:"reasoning_tokens"`
+	UnattributedCompletions    int                   `json:"unattributed_completions"`
+	UnattributedChoices        int                   `json:"unattributed_choices"`
+	UnattributedOutputTokens   uint64                `json:"unattributed_output_tokens"`
+	MeanFactorBPS              int                   `json:"mean_factor_bps"`
 }
 
 // CaseScore is the score for one case (tool OR memory).
@@ -677,7 +1031,25 @@ type CaseScore struct {
 	// ToolProvenance is the trusted broker-to-endpoint intersection for this
 	// case. It is nil before Bench v10, preserving every frozen contract.
 	ToolProvenance *ToolProvenanceEvidence `json:"tool_provenance,omitempty"`
-	Notes          []string                `json:"notes,omitempty"`
+	// ClaimProvenance is the Bench v13 claim-span provenance and causal
+	// answer_in_prompt evidence for a memory case: whether the value the harness
+	// served was emitted by a relay-observed model completion, and whether the
+	// harness itself authored that value into the prompt. Hash-derived verdicts
+	// only -- no prompt, completion, or answer text. nil before Bench v13,
+	// preserving every frozen contract.
+	ClaimProvenance *ClaimProvenanceEvidence `json:"claim_provenance,omitempty"`
+	// Catalog is the trusted relay record of what the harness offered the model
+	// for this case (Bench v13 catalog gate). nil before Bench v13, preserving
+	// every frozen contract.
+	Catalog *CatalogEvidence `json:"catalog,omitempty"`
+	// InferenceCost (bench_version 13) is the trusted broker's per-case inference
+	// cost record and its SHADOW cost factor (issue #1850): completions and
+	// sampled choices the relay delivered while this case was attributable,
+	// their output tokens, the published per-class budget, and the factor the
+	// v13 cost rule would apply. Reported only -- never multiplied into a score
+	// in v13.0. nil before Bench v13, preserving every frozen contract.
+	InferenceCost *InferenceCostEvidence `json:"inference_cost,omitempty"`
+	Notes         []string               `json:"notes,omitempty"`
 	// Injection is true when the deterministic grader saw injection compliance:
 	// either the embedded injection payload in the harness output, or an observed
 	// call to the case's action bait tool (MemoryCase.BaitTool) in the trajectory,
@@ -917,6 +1289,13 @@ type RunDetails struct {
 	// ToolProvenance is the v10+ aggregate of broker-emitted and
 	// validator-executed tool calls. Historical reports omit it.
 	ToolProvenance *ToolProvenanceSummary `json:"tool_provenance,omitempty"`
+	// ClaimProvenance is the Bench v13 aggregate of the per-case claim-span
+	// provenance and causal answer_in_prompt gates (posture, settled and flagged
+	// counts, attribution coverage). nil before Bench v13.
+	ClaimProvenance *ClaimProvenanceSummary `json:"claim_provenance,omitempty"`
+	// CatalogGate is the Bench v13 catalog-gate run summary, including the
+	// published catalog_suppression_rate. nil before Bench v13.
+	CatalogGate *CatalogGateSummary `json:"catalog_gate,omitempty"`
 	// IsolationCases is how many multi-graph isolation cases ran: a second
 	// persona seeded under a different user_id with a conflicting value, so a
 	// cross-graph memory leak scores wrong. Advisory telemetry.
@@ -948,6 +1327,20 @@ type RunDetails struct {
 	// and score transform separately so raw quality remains auditable.
 	TokenUsage      *TokenUsage      `json:"token_usage,omitempty"`
 	TokenEfficiency *TokenEfficiency `json:"token_efficiency,omitempty"`
+	// TwinPostPass (bench_version 13) summarizes the evidence-independent-default
+	// post-pass over decision/as-of twin groups and metamorphic base +
+	// counterfactual pairs (issue #1835): which rule ran, under which posture,
+	// how many groups were concordant, and the per-relation means. nil for
+	// every earlier contract; present on EVERY v13 run, including one that drew
+	// no paired case (every count 0), so the effective posture and rule are
+	// always visible to Platform.
+	TwinPostPass *TwinPostPassSummary `json:"twin_post_pass,omitempty"`
+	// InferenceCost (bench_version 13) is the run-level shadow cost-factor
+	// summary over CaseScore.InferenceCost (issue #1850): the published budgets,
+	// how many cases were attributable, and the mean factor the rule WOULD have
+	// applied. Shadow only in v13.0 -- Applied is always false. nil for every
+	// earlier contract.
+	InferenceCost *InferenceCostSummary `json:"inference_cost,omitempty"`
 }
 
 // TokenUsage is validator-observed model consumption for one isolated run.

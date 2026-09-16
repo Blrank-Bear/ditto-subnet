@@ -3,6 +3,7 @@ package grade
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 func gradeClaimSetV13(mc protocol.MemoryCase, resp protocol.RunResponse, an analysis, lex claimLexicon, policy gradingPolicy) Verdict {
 	var weighted, total float64
 	var notes []string
+	var credited [][]string
 	for i, claim := range mc.Claims {
 		weight := claim.Weight
 		if weight == 0 {
@@ -35,6 +37,11 @@ func gradeClaimSetV13(mc protocol.MemoryCase, resp protocol.RunResponse, an anal
 		for _, accepted := range claim.Accept {
 			claimLex.protected = append(claimLex.protected, foldV13(accepted))
 		}
+		claimLex.semanticValues = append([]string{foldV13(claim.Expected)}, claim.Accept...)
+		for i := range claimLex.semanticValues {
+			claimLex.semanticValues[i] = foldV13(claimLex.semanticValues[i])
+		}
+		sort.SliceStable(claimLex.semanticValues, func(i, j int) bool { return len(claimLex.semanticValues[i]) > len(claimLex.semanticValues[j]) })
 		if claim.Kind == protocol.ClaimKindDirection {
 			forms := make([]string, 0, len(claim.Accept))
 			for _, accepted := range claim.Accept {
@@ -66,17 +73,50 @@ func gradeClaimSetV13(mc protocol.MemoryCase, resp protocol.RunResponse, an anal
 		}
 		an = analyzeV13(resp.Answer, resp.FinalText, claimLex)
 		v := gradeClaimV13(cm, resp, cm.AnswerKind, an, claimLex, policy)
+		if claim.Kind == protocol.ClaimKindOrder {
+			// Neither field may contradict the requested sequence. A correct
+			// structured slot cannot excuse a reversed sequence in prose.
+			for _, field := range []string{resp.Answer, resp.FinalText} {
+				if strings.TrimSpace(field) == "" {
+					continue
+				}
+				fieldAnalysis := analyzeV13("", field, claimLex)
+				if !orderedHitV13(cm.AnswerItems, assertedProse(fieldAnalysis)) {
+					v = Verdict{Notes: []string{"order not asserted consistently (scored 0)"}}
+				}
+			}
+		}
 		if claim.Critical && v.Score != 1 {
 			return Verdict{Notes: []string{fmt.Sprintf("critical claim %d (%s) not satisfied (scored 0)", i, claim.Kind)}}
 		}
 		weighted += weight * v.Score
+		if v.Score > 0 {
+			credited = append(credited, ClaimAlternatives(cm)...)
+		}
 		total += weight
 		notes = append(notes, fmt.Sprintf("claim %d (%s): %.3f", i, claim.Kind, v.Score))
 	}
 	if total == 0 || math.IsInf(total, 0) {
 		return Verdict{Notes: []string{"invalid v13 claim weights (scored 0)"}}
 	}
-	return Verdict{Score: weighted / total, Notes: notes}
+	return Verdict{Score: weighted / total, Notes: notes, Provenance: provenanceV13(mc, resp, credited)}
+}
+
+// Only the accepted forms of claims actually credited above are eligible.
+// Unanswered siblings and a stale flattened ExpectedAnswer are never evidence.
+func provenanceV13(mc protocol.MemoryCase, resp protocol.RunResponse, groups [][]string) *ClaimProvenance {
+	if len(groups) == 0 {
+		return nil
+	}
+	span, source := resp.FinalText, SpanSourceFinalText
+	if strings.TrimSpace(resp.Answer) != "" {
+		span, source = resp.Answer, SpanSourceAnswer
+	}
+	kind := mc.AnswerKind
+	if kind == "" {
+		kind = protocol.AnswerValue
+	}
+	return &ClaimProvenance{Span: span, Source: source, Kind: kind, Alternatives: groups}
 }
 
 func memoryForClaimV13(mc protocol.MemoryCase, claim protocol.Claim) (protocol.MemoryCase, bool) {
@@ -92,16 +132,30 @@ func memoryForClaimV13(mc protocol.MemoryCase, claim protocol.Claim) (protocol.M
 	case protocol.ClaimKindValue, protocol.ClaimKindPerson, protocol.ClaimKindStatus,
 		protocol.ClaimKindEvent, protocol.ClaimKindOrganisation, protocol.ClaimKindAction,
 		protocol.ClaimKindChannel, protocol.ClaimKindSetMember, protocol.ClaimKindConflict,
-		protocol.ClaimKindTime:
+		protocol.ClaimKindTime, protocol.ClaimKindEntity, protocol.ClaimKindConcept:
 		// These semantic categories use reviewed canonical/accept forms, never a
 		// guessed synonym or an arbitrary numeric substring.
 	case protocol.ClaimKindDate:
 		mc.AnswerKind = protocol.AnswerDate
 	case protocol.ClaimKindDirection:
 		mc.AnswerKind = protocol.AnswerDirection
+	case protocol.ClaimKindOrder:
+		mc.AnswerKind = protocol.AnswerOrderedList
+		mc.AnswerItems = strings.Split(claim.Expected, " -> ")
+		if len(mc.AnswerItems) < 2 {
+			return mc, false
+		}
+		seen := map[string]bool{}
+		for _, item := range mc.AnswerItems {
+			item = normalizeV13(item)
+			if item == "" || seen[item] {
+				return mc, false
+			}
+			seen[item] = true
+		}
 	case protocol.ClaimKindQuantity:
 		switch strings.ToLower(strings.TrimSpace(claim.Unit)) {
-		case "cents", "minor":
+		case "cents", "minor", "money":
 			mc.AnswerKind, mc.AnswerUnit = protocol.AnswerMoney, protocol.AnswerUnitMinor
 		case "usd", "eur", "gbp", "cad":
 			mc.AnswerKind, mc.AnswerUnit = protocol.AnswerMoney, protocol.AnswerUnitMajor
@@ -113,7 +167,7 @@ func memoryForClaimV13(mc protocol.MemoryCase, claim protocol.Claim) (protocol.M
 				return mc, false
 			}
 			mc.ExpectedAnswer = strconv.FormatInt(major*100, 10)
-		case "", "count", "units", "nights", "seats", "hours", "licences", "percentage points":
+		case "", "count", "units", "nights", "days", "seats", "hours", "licences", "percent", "percentage points":
 			mc.AnswerKind = protocol.AnswerNumber
 		default:
 			return mc, false

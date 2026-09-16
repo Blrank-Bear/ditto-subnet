@@ -438,18 +438,13 @@ func TestV12KnownVector(t *testing.T) {
 	}
 }
 
-// TestV13KnownVector is the PLACEHOLDER pin for the v13 plumbing contract
-// (issue #1824): the v13 version constant, the 250-case memory envelope
-// (profilesV13 full: Mem 224 + 9 isolation), and a surface pass that is a
-// byte-for-byte copy of v12. It exists so every later v13 PR (mix rebalance,
-// story v2, tool bench, grader, label-leak fix) moves THIS hash deliberately
-// and leaves every v2..v12 vector above untouched — a moved earlier vector
-// means a lever is not gated on bench_version >= 13. It is re-pinned when the
-// v13 envelope lands, after the /seed label-leak fix.
+// The integrated v13 contract pins all slot generators, opaque seed metadata,
+// explicit-year calendar evidence, and fully rendered story arithmetic.
+// Every v2..v12 vector above remains unchanged.
 // v13KnownVectorWant is the pinned v13 full vector for seed 123456789; the
 // README table and docs/bench-versions.md must publish the same value
 // (TestV13KnownVectorIsPublishedConsistently).
-const v13KnownVectorWant = "80e76383a7d1ee8b1080a5a0a1526387faadf620578e22f0690dc5ae5a1709b6"
+const v13KnownVectorWant = "4ac6913c55b59a8ed4ed99e05278de4d003f1161ce8a711afb9eb6b469e535db"
 
 func TestV13KnownVector(t *testing.T) {
 	const (
@@ -488,9 +483,12 @@ func TestUnsupportedVersionRejected(t *testing.T) {
 }
 
 // TestSameSeedSameBytes is the core determinism guarantee: one seed, one artifact.
+// v2..v12 keep the historical check under the legacy ProfileFor("full") shape
+// (Tools 60 / Mem 50), exactly as before v13 landed; v13 publishes a slot table
+// only for its own public run sizes (a foreign size fails closed), so it is
+// checked under its canonical ProfileForVersion profile in a second loop.
 func TestSameSeedSameBytes(t *testing.T) {
-	prof, _ := ProfileFor("full")
-	for _, version := range protocol.SupportedBenchVersions() {
+	assertSameBytes := func(version int, prof Profile) {
 		artifactA, err := GenerateDataset(42, prof, version)
 		if err != nil {
 			t.Fatalf("v%d generate a: %v", version, err)
@@ -510,5 +508,19 @@ func TestSameSeedSameBytes(t *testing.T) {
 		if a != b {
 			t.Fatalf("v%d same seed produced different bytes: %s vs %s", version, a, b)
 		}
+	}
+	legacy, _ := ProfileFor("full")
+	for _, version := range []int{protocol.BenchVersionV2, protocol.BenchVersionV3, protocol.BenchVersionV4, protocol.BenchVersionV5, protocol.BenchVersionV6, protocol.BenchVersionV7, protocol.BenchVersionV8, protocol.BenchVersionV9, protocol.BenchVersionV10, protocol.BenchVersionV11, protocol.BenchVersionV12} {
+		assertSameBytes(version, legacy)
+	}
+	for version := protocol.BenchVersionV13; protocol.SupportedBenchVersion(version); version++ {
+		prof, ok := ProfileForVersion("full", version)
+		if !ok {
+			t.Fatalf("v%d has no canonical full profile", version)
+		}
+		if _, err := GenerateDataset(42, legacy, version); err == nil {
+			t.Fatalf("v%d accepted the legacy full profile; it must fail closed on a size without a slot table", version)
+		}
+		assertSameBytes(version, prof)
 	}
 }

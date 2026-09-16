@@ -441,7 +441,7 @@ type capabilitiesResponse struct {
 // MAX_SUPPORTED_BENCH_VERSION, so the version never strands at one layer.
 const (
 	advertisedMinBenchVersion = protocol.BenchVersionV8
-	advertisedMaxBenchVersion = protocol.BenchVersionV12
+	advertisedMaxBenchVersion = protocol.BenchVersionV13
 )
 
 // supportedBenchVersions is the capability set this build can administer. It is
@@ -588,6 +588,19 @@ func (s *server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("X-Bench-Version", strconv.Itoa(benchVersion))
+	// From bench_version 13 the advertised catalog is a per-seed surface (coined
+	// decoys, paraphrased descriptions). A practice caller that pins ?seed= sees
+	// exactly the surface a scored run of that seed advertises; without a seed
+	// the seed-free production surface (no decoys) is returned.
+	if seedText := strings.TrimSpace(r.URL.Query().Get("seed")); seedText != "" && benchVersion >= protocol.BenchVersionV13 {
+		seed, err := strconv.ParseInt(seedText, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "seed must be an integer")
+			return
+		}
+		writeJSON(w, http.StatusOK, catalog.CatalogForSeed(benchVersion, seed))
+		return
+	}
 	writeJSON(w, http.StatusOK, catalog.CatalogForVersion(benchVersion))
 }
 
@@ -1166,14 +1179,14 @@ func (s *server) handleScoreRequest(w http.ResponseWriter, r *http.Request) {
 
 func requestedBenchVersion(requested int) (int, string) {
 	if requested == 0 {
-		return 0, "bench_version is required (supported: 8, 9, 10, 11, 12)"
+		return 0, fmt.Sprintf("bench_version is required (supported: %v)", supportedBenchVersions())
 	}
 	for _, version := range supportedBenchVersions() {
 		if requested == version {
 			return requested, ""
 		}
 	}
-	return 0, "unsupported bench_version (supported: 8, 9, 10, 11, 12)"
+	return 0, fmt.Sprintf("unsupported bench_version (supported: %v)", supportedBenchVersions())
 }
 
 func toolPrerequisiteWave(toolCases []protocol.ToolCase) (protocol.SeedRequest, error) {
@@ -1480,7 +1493,7 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 	// bytes for a seed — recomputes the fixture digests from the same (seed, case).
 	toolFixtureByInternalID := make(map[string]toolexec.Fixture, len(toolCases))
 	for _, c := range toolCases {
-		toolFixtureByInternalID[c.ID] = toolexec.BuildFixture(seed, c)
+		toolFixtureByInternalID[c.ID] = toolexec.BuildFixtureForVersion(seed, c, req.BenchVersion)
 	}
 	// The hashed artifact covers the secondary isolation graph too (when present),
 	// so a dispute re-scores the exact multi-graph seeding.
@@ -1555,6 +1568,11 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 	var handle *sandbox.Handle
 	var runErr error
 	var sourceCapability string
+	// harnessInferenceGateway is the inference base URL the sandboxed harness
+	// was launched with; Bench v13 /run requests carry a case-scoped form of it
+	// (v13CaseInferenceBaseURL) so completions stay attributable under
+	// concurrency. Empty on the direct-harness path.
+	harnessInferenceGateway := ""
 	strictCleanupOnly := false
 	if image != "" {
 		// Register ownership before Sandbox.Run: an implementation may return a
@@ -1589,6 +1607,7 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 				return
 			}
 		}
+		harnessInferenceGateway = env["DITTOBENCH_INFERENCE_BASE_URL"]
 		handle, runErr = s.sandbox.Run(ctx, image, env)
 		if runErr != nil {
 			if sourceCapability != "" {
@@ -1636,7 +1655,10 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 		s.store.Fail(runID, "harness never became healthy: "+healthErr.Error())
 		return
 	}
-	tools := catalog.CatalogForVersion(req.BenchVersion)
+	// v13+ advertises the per-seed surface (paraphrased descriptions, enum
+	// schemas, coined decoys); the same seed drives the fixtures above, so the
+	// decoys a harness sees are exactly the ones the mock endpoint knows.
+	tools := catalog.CatalogForSeed(req.BenchVersion, seed)
 
 	// V8 harnesses may embed before any model turn, including the route probe
 	// below. Admit the ticket-bound embedding lane before probing so a working
@@ -1809,7 +1831,7 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 				return
 			}
 		}
-		toolSrv.Register(sc.Case.ID, toolexec.BuildFixture(seed, protocol.ToolCase{ID: internalID}))
+		toolSrv.Register(sc.Case.ID, toolexec.BuildFixtureForVersion(seed, protocol.ToolCase{ID: internalID}, req.BenchVersion))
 	}
 	toolSourceIP := ""
 	if handle != nil {
@@ -1890,6 +1912,11 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 	toolWasObserved := make([]bool, len(toolCases))
 	toolWasCapped := make([]bool, len(toolCases))
 	toolTranscripts := make([]transcriptCase, len(toolCases))
+	// Bench v13 twin evidence (issue #1835): what the post-pass needs about
+	// each case beyond its CaseScore, keyed by the case id the report carries.
+	// Collected per index inside the bounded loops, merged single-threaded.
+	twinEvidence := map[string]scorer.TwinEvidence{}
+	toolTwins := make([]scorer.TwinEvidence, len(toolCases))
 	var projectionFailure error
 	var projectionFailureOnce sync.Once
 	recordProjectionFailure := func(err error) {
@@ -1916,6 +1943,14 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 		cs := scorer.ScoreToolCaseObservedForVersion(c, resp, runErr == nil, observed, scope, req.BenchVersion)
 		cs = applyV10ToolProvenance(req.BenchVersion, scope, cs, resp, observed, execution)
 		cs = applyV13RestraintProvenance(req.BenchVersion, c, cs, execution)
+		// Bench v13 catalog gate: restraint and expected-tool credit scored against
+		// what the harness OFFERED the model (relay-recorded). Shadow by default;
+		// no-op below v13.
+		cs = applyV13CatalogGate(req.BenchVersion, scope, v13CatalogGatePosture, cs, c, tools, observed, execution)
+		// The broker ledger is keyed by the wire case id, so read it before any
+		// v9 projection reverse-maps cs.CaseID below.
+		cs = s.applyV13InferenceCost(req.BenchVersion, inferenceSessionID, cs, toolCostClass(c), &execution)
+		toolTwins[i] = toolTwinEvidence(req.BenchVersion, c, resp, observed)
 		fixture := toolFixtureByInternalID[c.ID]
 		if harnessProjection != nil {
 			internalID, reverseErr := harnessProjection.InternalCaseID(c.ID)
@@ -1983,12 +2018,14 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 		s.store.Fail(runID, "v9 tool capability reverse mapping failed")
 		return
 	}
-	// v13 restraint groups are scored together after every member has landed;
-	// the rule ships in shadow (annotation only) unless the operator posture
-	// says enforce.
-	toolResults = scorer.ApplyV13RestraintGroupRule(req.BenchVersion, toolResults, v13RestraintGroupPosture())
+	// The unified v13 twin post-pass below owns all decision groups. Do not
+	// also run the earlier any-member-wrong group rule: it charges an honest
+	// miss to correct siblings even when their decisions are not concordant.
 	for i, cs := range toolResults {
 		perCase = append(perCase, cs)
+		if toolTwins[i].Paired() {
+			twinEvidence[cs.CaseID] = toolTwins[i]
+		}
 		if toolWasObserved[i] {
 			observedTool++
 		} else if toolWasCapped[i] {
@@ -2011,20 +2048,16 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 		defer endEmbeddingPhase()
 	}
 
-	// 5. memory cases — staged Tier-C ingestion: seed a wave,
-	//    then run the cases it unlocks (all their evidence is now seeded), then
-	//    the next wave. A single-wave run degrades to seed-then-run-all.
-	casesByWave := make([][]gen.StagedCase, memSuite.SeedingWaves)
-	for _, sc := range memSuite.Cases {
-		w := sc.RunAfterWave
-		if w < 0 {
-			w = 0
-		}
-		if w >= memSuite.SeedingWaves {
-			w = memSuite.SeedingWaves - 1
-		}
-		casesByWave[w] = append(casesByWave[w], sc)
-	}
+	// 5. memory cases — staged Tier-C ingestion: seed a wave, wait for the
+	//    harness's 2xx ingest acknowledgement, then run the cases it unlocks
+	//    (all their evidence is now seeded), then the next wave. A single-wave
+	//    run degrades to seed-then-run-all. runner.RunStagedWaves owns the
+	//    barrier so the ordering is testable in isolation; Bench v13 stages real
+	//    corrections into waves 1-2, so a case dispatched before the ack would
+	//    zero an honest harness on the evidence it has not yet embedded.
+	casesByWave := runner.StageCasesByWave(memSuite.SeedingWaves, len(memSuite.Cases), func(i int) int {
+		return memSuite.Cases[i].RunAfterWave
+	})
 	// Seed the secondary isolation graph up front (a distinct user_id), so cross-
 	// user isolation cases can run in any wave.
 	if len(iso.SecondaryWave.Pairs) > 0 {
@@ -2038,27 +2071,34 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 			return
 		}
 	}
-	for w, wave := range memSuite.Waves {
-		if len(wave.Pairs) > 0 {
-			s.store.SetStage(runID, store.StatusSeeding, len(perCase), total)
-			if _, err := runner.SeedForVersion(ctx, harnessURL, wave, req.BenchVersion); err != nil {
-				if req.BenchVersion >= protocol.BenchVersionV7 {
-					s.failV7Seeding(runID, fmt.Sprintf("seeding haystack wave %d failed: ", w), err)
-				} else {
-					s.store.Fail(runID, fmt.Sprintf("seeding haystack wave %d failed: %s", w, err.Error()))
-				}
-				return
-			}
-		}
+	// Bench v13 causal gate exemption: every record the harness was (or will be)
+	// delivered through /seed, so a value quoted from retrieved memory is never
+	// answer_in_prompt. Built once over the projected waves; nil below v13.
+	recordTokens := v13RecordTokens(req.BenchVersion, append(append([]protocol.SeedRequest(nil), memSuite.Waves...), iso.SecondaryWave), toolCases)
+	var claimProvenanceReader v13ClaimProvenanceReader
+	if s.broker != nil {
+		claimProvenanceReader = s.broker
+	}
+	errMemoryProjection := errors.New("v9 memory capability reverse mapping failed")
+	waveErr := runner.RunStagedWaves(ctx, memSuite.Waves, casesByWave, func(ctx context.Context, w int, wave protocol.SeedRequest) error {
+		s.store.SetStage(runID, store.StatusSeeding, len(perCase), total)
+		_, err := runner.SeedForVersion(ctx, harnessURL, wave, req.BenchVersion)
+		return err
+	}, func(ctx context.Context, w int, bucket []int) error {
+		wave := memSuite.Waves[w]
 		s.store.SetStage(runID, store.StatusRunning, len(perCase), total)
 		// Cases within one wave are independent: their evidence is fully seeded
 		// (this wave and all prior waves), lifecycle WRITE cases live only in wave
 		// 0 and their READ cases in a later wave, and same-wave writes target
 		// distinct keys — so they run with bounded concurrency. The wave boundary
 		// stays a barrier: seed wave w, run its cases, then seed wave w+1.
-		waveCases := casesByWave[w]
+		waveCases := make([]gen.StagedCase, 0, len(bucket))
+		for _, index := range bucket {
+			waveCases = append(waveCases, memSuite.Cases[index])
+		}
 		waveResults := make([]protocol.CaseScore, len(waveCases))
 		waveTranscripts := make([]transcriptCase, len(waveCases))
+		waveTwins := make([]scorer.TwinEvidence, len(waveCases))
 		runBounded(ctx, len(waveCases), effectiveCaseConcurrency, func(i int) {
 			sc := waveCases[i]
 			mc := sc.Case
@@ -2069,7 +2109,12 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 				uid = wave.UserID
 			}
 			caseToolEndpoint := toolEndpoint.forCase(mc.ID, uid)
-			resp, execution, runErr := s.runCaseWithModelAttribution(ctx, inferenceSessionID, harnessURL, mc.ID, mc.Question, tools, runner.CaseOptions{ToolEndpoint: caseToolEndpoint, UserID: uid, BenchVersion: req.BenchVersion})
+			resp, execution, runErr := s.runCaseWithModelAttribution(ctx, inferenceSessionID, harnessURL, mc.ID, mc.Question, tools, runner.CaseOptions{
+				ToolEndpoint: caseToolEndpoint, UserID: uid, BenchVersion: req.BenchVersion,
+				// v13: name the case in the inference base URL so a per-run model
+				// client is attributable under concurrent /run (empty below v13).
+				InferenceBaseURL: v13CaseInferenceBaseURL(req.BenchVersion, harnessInferenceGateway, mc.ID),
+			})
 			observedCalls := toolSrv.Observed(mc.ID)
 			resp = withObservedTrajectory(resp, observedCalls)
 			gradedResp := resp
@@ -2083,6 +2128,15 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 			cs = applyV10ToolProvenance(
 				req.BenchVersion, scope, cs, resp, observedCalls, execution,
 			)
+			// Bench v13 claim gates: the credited claim span must be model-emitted
+			// and not harness-authored into the prompt (relay-recorded). Shadow by
+			// default; no-op below v13.
+			cs = applyV13ClaimProvenance(
+				req.BenchVersion, scope, v13ClaimProvenancePosture, cs, mc, gradedResp,
+				runner.DefaultSystemPrompt, recordTokens, claimProvenanceReader, inferenceSessionID,
+			)
+			cs = s.applyV13InferenceCost(req.BenchVersion, inferenceSessionID, cs, memoryCostClass(), &execution)
+			waveTwins[i] = memoryTwinEvidence(req.BenchVersion, sc, gradedResp, observedCalls)
 			if runErr != nil {
 				// The case still scores 0 on its own accuracy (an empty response
 				// grades 0); this only tells the group metrics to drop it, so a
@@ -2123,16 +2177,37 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 		})
 		// Same zero-value guard as the tool loop: a cancellation mid-wave must
 		// not fold half-empty results into a report.
-		if ctx.Err() != nil {
+		if err := ctx.Err(); err != nil {
 			log.Printf("run %s: cancelled during memory wave %d; abandoning without a report", runID, w)
-			return
+			return err
 		}
 		if projectionFailure != nil {
-			s.store.Fail(runID, "v9 memory capability reverse mapping failed")
-			return
+			return errMemoryProjection
 		}
 		perCase = append(perCase, waveResults...)
 		transcripts = append(transcripts, waveTranscripts...)
+		for i, cs := range waveResults {
+			if waveTwins[i].Paired() {
+				twinEvidence[cs.CaseID] = waveTwins[i]
+			}
+		}
+		return nil
+	})
+	if waveErr != nil {
+		var seedErr *runner.WaveSeedError
+		switch {
+		case errors.As(waveErr, &seedErr):
+			if req.BenchVersion >= protocol.BenchVersionV7 {
+				s.failV7Seeding(runID, fmt.Sprintf("seeding haystack wave %d failed: ", seedErr.Wave), seedErr.Err)
+			} else {
+				s.store.Fail(runID, fmt.Sprintf("seeding haystack wave %d failed: %s", seedErr.Wave, seedErr.Err.Error()))
+			}
+		case errors.Is(waveErr, errMemoryProjection):
+			s.store.Fail(runID, errMemoryProjection.Error())
+		default:
+			// Cancellation: the cancel handler already failed the run.
+		}
+		return
 	}
 	// Close broker access before scoring/accounting. The once-guarded deferred
 	// cleanup still handles every early return, cancel, and panic above.
@@ -2184,6 +2259,12 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 	// into any mean, uncertainty estimate, or gate.
 	perCase = scorer.ScoredPopulation(perCase)
 	s.store.SetStage(runID, store.StatusScoring, len(perCase), total)
+	// Bench v13 twin / pair post-pass (issue #1835) runs on the scored
+	// population before aggregation so the per-relation means and any enforced
+	// rule land in the composite's inputs. It is the identity for bench_version
+	// < 13 and, under the default observe posture, annotates without moving a
+	// score.
+	perCase, twinSummary := scorer.ApplyV13TwinPostPass(perCase, twinEvidence, scorer.TwinPostPassConfigFromEnv(), req.BenchVersion)
 	// Score under the contract this run was GENERATED for, not the module's
 	// current release: a v2 run's composite is pure accuracy, and the v3+ gate
 	// factors must not retroactively apply to it.
@@ -2199,6 +2280,16 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 			toolProvenanceTotals = &totals
 		}
 	}
+	// Bench v13 catalog capture run totals (completions attributed / not) for
+	// the catalog_gate summary and its published catalog_suppression_rate.
+	var catalogTotals *sessionCatalogTotals
+	if req.BenchVersion >= scorer.CatalogGateBenchVersion && inferenceSessionID != "" && s.broker != nil {
+		if totals, ok := s.broker.sessionCatalogTotals(inferenceSessionID); ok {
+			catalogTotals = &totals
+		}
+	}
+	catalogGateSummary := summarizeV13CatalogGate(req.BenchVersion, v13CatalogGatePosture, perCase, catalogTotals)
+	logV13CatalogCoverageGap(runID, catalogGateSummary)
 	report.Details = &protocol.RunDetails{
 		BenchVersion:      req.BenchVersion,
 		RunSize:           req.RunSize,
@@ -2212,6 +2303,8 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 		ObservedToolCases: observedTool,
 		CappedToolCases:   cappedTool,
 		ToolProvenance:    summarizeV10ToolProvenance(perCase, toolProvenanceTotals),
+		ClaimProvenance:   summarizeV13ClaimProvenance(req.BenchVersion, v13ClaimProvenancePosture, perCase),
+		CatalogGate:       catalogGateSummary,
 		IsolationCases:    len(iso.Cases),
 		LifecycleCases:    memSuite.LifecycleCases,
 		ToolEfficiency:    scorer.ToolEfficiencyFactorForVersion(perCase, req.BenchVersion),
@@ -2249,6 +2342,11 @@ func (s *server) runSizeJob(ctx context.Context, runID string, req submitRequest
 		report.Details.CalibrationBrier = brier
 		report.Details.CalibrationN = cn
 	}
+	// Bench v13 shadow telemetry: the twin post-pass record and the per-case
+	// inference cost summary. Both are nil before v13, so earlier details keep
+	// their exact shape.
+	report.Details.TwinPostPass = twinSummary
+	report.Details.InferenceCost = s.summarizeV13InferenceCost(req.BenchVersion, inferenceSessionID, perCase)
 	report = applyTokenContract(report, req.BenchVersion, req.RunSize, tokenUsage)
 	if injections > 0 {
 		log.Printf("run %s: %d injection-compliance case(s) flagged", runID, injections)

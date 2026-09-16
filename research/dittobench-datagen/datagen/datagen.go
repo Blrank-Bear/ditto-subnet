@@ -12,7 +12,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ditto-assistant/dittobench-datagen/catalog"
+	"github.com/ditto-assistant/dittobench-datagen/internal/appearance"
 	"github.com/ditto-assistant/dittobench-datagen/internal/assistantvoice"
+	"github.com/ditto-assistant/dittobench-datagen/internal/humandata"
+	"github.com/ditto-assistant/dittobench-datagen/internal/publicdata"
 	"github.com/ditto-assistant/dittobench-datagen/internal/textnoise"
 	"github.com/ditto-assistant/dittobench-datagen/internal/uservoice"
 	"github.com/ditto-assistant/dittobench-datagen/persona"
@@ -712,6 +716,13 @@ func fillerForVersion(r *rand.Rand, cat string, benchVersion int) string {
 		p := poolV5(base, extra, benchVersion)
 		return p[r.Intn(len(p))]
 	}
+	if benchVersion >= protocol.BenchVersionV13 && cat == "email_send" {
+		// v13 (#1825): the addressee filler draws from the human-name corpus
+		// instead of a hand list of four entries. The appearance categories are
+		// not fillers at v8+ (v8ArgIntents owns their value); at v13 that value
+		// comes from the seed's appearance inventory in v13AppearanceIntent.
+		return corpusEmailRecipient(r)
+	}
 	switch cat {
 	case "entity_lookup_chain":
 		return pick(subjects, nil)
@@ -731,6 +742,20 @@ func fillerForVersion(r *rand.Rand, cat string, benchVersion int) string {
 		return pick(calendarTitles, calendarTitlesV5)
 	}
 	return fillerForLegacy(r, cat)
+}
+
+// corpusEmailRecipient composes a v13 email_send addressee from the human-name
+// corpus and an organisation stem ("priya.okafor@talgo.example"), or one of the
+// role-shaped addressees the templates already accept.
+func corpusEmailRecipient(r *rand.Rand) string {
+	switch r.Intn(3) {
+	case 0:
+		return strings.ToLower(humandata.GivenName(r, r.Intn(5))) + "." + strings.ToLower(humandata.Surname(r, r.Intn(7))) + "@" + strings.ToLower(publicdata.OrgStem(r)) + ".example"
+	case 1:
+		return strings.ToLower(humandata.GivenName(r, r.Intn(5))) + "@" + strings.ToLower(publicdata.OrgStem(r)) + ".example"
+	default:
+		return []string{"the team", "my accountant", "my " + publicdata.Occupation(r), "the " + publicdata.OrgStem(r) + " reviewers"}[r.Intn(4)]
+	}
 }
 
 // fillerForLegacy is the historical per-category pool selection for every category
@@ -1276,8 +1301,8 @@ var difficultyCategoriesV7 = []category{
 // the validator-observed final action and its seed-derived argument remain
 // deterministic. MaxToolCalls describes the expected envelope; it is not a hard
 // cap and creative agents may legitimately exceed it.
-func applyV8WorldActions(seed int64, cases []protocol.ToolCase) {
-	applyWorldActions(seed, cases, false, protocol.BenchVersionV8)
+func applyV8WorldActions(seed int64, cases []protocol.ToolCase) map[string]bool {
+	return applyWorldActions(seed, cases, false, protocol.BenchVersionV8)
 }
 
 const (
@@ -1307,8 +1332,8 @@ const (
 // world tool prompt from a slot-bound grammar (datagen/grammars_v13.go) while
 // the conversion targets, world kinds, and expected tool outcomes stay exactly
 // the v9 ones for every version from 9 on.
-func applyV9WorldActionsForVersion(seed int64, benchVersion int, cases []protocol.ToolCase) {
-	applyWorldActions(seed, cases, true, benchVersion)
+func applyV9WorldActionsForVersion(seed int64, benchVersion int, cases []protocol.ToolCase) map[string]bool {
+	return applyWorldActions(seed, cases, true, benchVersion)
 }
 
 // applyV10StateDependentActions removes the last easy prompt-to-tool shortcut
@@ -1339,7 +1364,7 @@ func applyV10StateDependentActions(seed int64, benchVersion int, cases []protoco
 		projectIndex++
 		pairID := protocol.OpaqueCaseID(seed, "v10-tool-route", i)
 		planningPrompt := fmt.Sprintf("Planning decision for dependency-risk work on %q at %s.", project.Alias, project.Client)
-		prompt := fmt.Sprintf("Handle the dependency-risk review for %q using the operating choice I approved in our planning note. Start that work now.", project.Alias)
+		prompt := fmt.Sprintf(v10StateDependentRoutingFrame, project.Alias)
 		routePrefix := "Approved route: "
 		if benchVersion >= protocol.BenchVersionV13 {
 			// v13 renders every routing cue from a slot-bound grammar drawn from
@@ -1356,22 +1381,12 @@ func applyV10StateDependentActions(seed int64, benchVersion int, cases []protoco
 			// enumerable list a rule engine could match. The decision's semantics
 			// and the expected tool outcome are untouched.
 			planningPrompt = fmt.Sprintf(
-				v12ToolPick(seed, i, "plan",
-					[]string{"Decision log", "Where we landed", "Outcome of our scoping chat", "Notes from planning"},
-					[]string{" for the risk review on", " about the dependency work for", " covering the review of"},
-				)+" %q"+v12ToolPick(seed, i, "plantail",
-					[]string{" at %s.", " (%s).", " for %s."},
-				), project.Alias, project.Client)
+				v12ToolPick(seed, i, "plan", v12RoutingPlanLeads, v12RoutingPlanMids)+" %q"+
+					v12ToolPick(seed, i, "plantail", v12RoutingPlanTails), project.Alias, project.Client)
 			prompt = fmt.Sprintf(
-				v12ToolPick(seed, i, "asklead",
-					[]string{"Kick off", "Time to start", "Please begin", "Go ahead and start"},
-				)+" the dependency-risk review for %q "+v12ToolPick(seed, i, "asktail",
-					[]string{"the way we already agreed. Start now.", "exactly as we settled earlier. Begin.", "following what we decided together. Proceed."},
-				), project.Alias)
-			routePrefix = v12ToolPick(seed, i, "route",
-				[]string{"What we settled on", "Agreed path", "Our decision", "The plan we set"},
-				[]string{": ", " — ", " is: ", ", "},
-			)
+				v12ToolPick(seed, i, "asklead", v12RoutingAskLeads)+" the dependency-risk review for %q "+
+					v12ToolPick(seed, i, "asktail", v12RoutingAskTails), project.Alias)
+			routePrefix = v12ToolPick(seed, i, "route", v12RoutingRouteLeads, v12RoutingRouteSeps)
 		} else if benchVersion >= protocol.BenchVersionV11 {
 			// v11 rotates every literal cue the measured rule engines matched
 			// ("planning note", "operating choice", "Approved route:"). The
@@ -1431,10 +1446,17 @@ func applyV10StateDependentActions(seed int64, benchVersion int, cases []protoco
 		originalProtected := cases[i].WritingProtected
 		tc := fuzzyWorldTool(cases[i].ID, category, prompt, expected, behavior)
 		tc.ForbiddenTools = forbidden
-		tc.PrerequisitePairs = append(append([]protocol.MemoryPair(nil), originalPrerequisites...), protocol.MemoryPair{
+		routeRecord := protocol.MemoryPair{
 			PairID: pairID, SessionID: fmt.Sprintf("v10-tool-route-%02d", projectIndex), Timestamp: "2026-01-15T10:00:00Z",
 			Prompt: planningPrompt, Response: planningResponse,
-		})
+		}
+		if benchVersion >= protocol.BenchVersionV13 {
+			// v13 (#1827): "v10-tool-route-04" named the routing family (and the
+			// project) on the /seed wire; the fixed timestamp marked it too.
+			routeRecord.SessionID = protocol.OpaqueCaseID(seed, "v13-tool-route-session", projectIndex)
+			routeRecord.Timestamp = protocol.NewOpaqueTimeline(seed, fmt.Sprintf("v13-tool-route-%d", projectIndex)).Next()
+		}
+		tc.PrerequisitePairs = append(append([]protocol.MemoryPair(nil), originalPrerequisites...), routeRecord)
 		tc.WritingProtected = append(append([]string(nil), originalProtected...), project.Alias, project.Client, project.Name)
 		tc.WritingProtected = append(tc.WritingProtected, extraProtected...)
 		cases[i] = tc
@@ -1459,9 +1481,9 @@ func v9ComposedFamily(category string) bool {
 	return v9WorldFamily(category) || category == "stale_context_web" || category == "memory_fetch"
 }
 
-func applyWorldActions(seed int64, cases []protocol.ToolCase, preserveSemanticFloor bool, benchVersion int) {
+func applyWorldActions(seed int64, cases []protocol.ToolCase, preserveSemanticFloor bool, benchVersion int) map[string]bool {
 	if len(cases) == 0 {
-		return
+		return nil
 	}
 	prompts := worldPromptsForVersion(seed, benchVersion)
 	worldTarget, worldMinimum := v13WorldEnvelope(benchVersion)
@@ -1478,6 +1500,11 @@ func applyWorldActions(seed int64, cases []protocol.ToolCase, preserveSemanticFl
 		scale = 2
 	}
 	world := universe.GenerateForVersion(seed, scale, benchVersion)
+	storyPairs := make(map[string]bool, len(world.Stories))
+	initialPairs := world.InitialPairs(world.StagedCorrectionMembership(world.V13Allocation(0)))
+	for _, story := range world.Stories {
+		storyPairs[story.PairID] = true
+	}
 	target := (65*len(cases) + 99) / 100
 	if target >= len(cases) {
 		target = len(cases) - 1 // retain at least one plain v7-style coverage case
@@ -1539,7 +1566,7 @@ func applyWorldActions(seed int64, cases []protocol.ToolCase, preserveSemanticFl
 			tc = prompts.agentJob(caseID, world, converted+i)
 		}
 		if !attachedWorld {
-			tc.PrerequisitePairs = append([]protocol.MemoryPair(nil), world.Pairs...)
+			tc.PrerequisitePairs = append([]protocol.MemoryPair(nil), initialPairs...)
 			attachedWorld = true
 			worldCarrier = i
 		}
@@ -1639,7 +1666,7 @@ func applyWorldActions(seed int64, cases []protocol.ToolCase, preserveSemanticFl
 		if worldCarrier < 0 {
 			worldCarrier = 0
 		}
-		cases[worldCarrier].PrerequisitePairs = append(cases[worldCarrier].PrerequisitePairs, world.Pairs...)
+		cases[worldCarrier].PrerequisitePairs = append(cases[worldCarrier].PrerequisitePairs, initialPairs...)
 		attachedWorld = true
 	}
 	protected := world.ProtectedTerms()
@@ -1648,17 +1675,20 @@ func applyWorldActions(seed int64, cases []protocol.ToolCase, preserveSemanticFl
 			cases[i].WritingProtected = append(cases[i].WritingProtected, protected...)
 		}
 		if strings.HasPrefix(cases[i].Category, "world_") {
-			cases[i].WritingProtected = append(cases[i].WritingProtected, toolexec.NeedleForV8World(seed, cases[i].ID).Subject)
+			cases[i].WritingProtected = append(cases[i].WritingProtected, toolexec.NeedleForV8WorldVersion(seed, cases[i].ID, benchVersion).Subject)
 		} else {
-			cases[i].WritingProtected = append(cases[i].WritingProtected, toolexec.NeedleFor(seed, cases[i].ID).Subject)
+			cases[i].WritingProtected = append(cases[i].WritingProtected, toolexec.NeedleForVersion(seed, cases[i].ID, benchVersion).Subject)
 		}
 	}
+	return storyPairs
 }
 
-func v8WorldContactEmail(seed int64, caseID string, world universe.World, index int) protocol.ToolCase {
-	p := world.People[index%len(world.People)]
-	needle := toolexec.NeedleForV8World(seed, caseID)
-	prompts := []string{
+// World-family prompt frames and the v12 routing-cue component banks. They are
+// package-level so WorldToolSurfaces and V12RoutingCueBanks (surfaces_export.go)
+// return the generator's own banks rather than copies that could drift.
+// Hoisting the literals out of the render sites changes no generated bytes.
+var (
+	worldContactEmailFrames = []string{
 		"What is %s at right now? Forward the figure to %s — the %s in %s from the %s.",
 		"Could you check the latest figure for %s and send it to %s? I mean my %s in %s, the one from the %s.",
 		"Please look up %s and pass the current number along to %s, my %s in %s from the %s.",
@@ -1668,22 +1698,43 @@ func v8WorldContactEmail(seed int64, caseID string, world universe.World, index 
 		"Find the live value for %s, then get it over to %s — my %s in %s from the %s.",
 		"What's the latest on %s? Email the number to %s, my %s in %s from the %s.",
 	}
+	worldMemoryDeleteFrame     = "You can bin that temporary note about fixing %s's email after the %s — they're my %s at %s. Just don't lose their actual contact history."
+	worldMemoryUpdateFrame     = "Add to the handoff note for %q at %s that we're doing the handoff Friday. It's the %s project; update the scratchpad, not the project history."
+	worldThemeDiscoverSetFrame = "Make Ditto use my usual %s-ish accent — the personal app preference, not one of the client brand colors. If I mangled the spelling, check the available appearance options first."
+	worldBusinessWorkflowFrame = "Check whether I already have a workflow for %q, the project for %s. If not, create one under the project's formal name and put the current contact address for internal reviewer %s in its review step."
+	worldLinkChainFrame        = "See what %s is at right now, and open the actual page rather than relying on the search blurb."
+	// v10StateDependentRoutingFrame is the fixed v10 ask; v11 rotates it and v12
+	// composes it from the banks below (applyV10StateDependentActions).
+	v10StateDependentRoutingFrame = "Handle the dependency-risk review for %q using the operating choice I approved in our planning note. Start that work now."
+	v12RoutingAskLeads            = []string{"Kick off", "Time to start", "Please begin", "Go ahead and start"}
+	v12RoutingAskTails            = []string{"the way we already agreed. Start now.", "exactly as we settled earlier. Begin.", "following what we decided together. Proceed."}
+	v12RoutingPlanLeads           = []string{"Decision log", "Where we landed", "Outcome of our scoping chat", "Notes from planning"}
+	v12RoutingPlanMids            = []string{" for the risk review on", " about the dependency work for", " covering the review of"}
+	v12RoutingPlanTails           = []string{" at %s.", " (%s).", " for %s."}
+	v12RoutingRouteLeads          = []string{"What we settled on", "Agreed path", "Our decision", "The plan we set"}
+	v12RoutingRouteSeps           = []string{": ", " — ", " is: ", ", "}
+)
+
+func v8WorldContactEmail(seed int64, benchVersion int, caseID string, world universe.World, index int) protocol.ToolCase {
+	p := world.People[index%len(world.People)]
+	needle := toolexec.NeedleForV8WorldVersion(seed, caseID, benchVersion)
+	prompts := worldContactEmailFrames
 	prompt := fmt.Sprintf(prompts[index%len(prompts)], needle.Subject, p.Nickname, p.Relation, p.City, p.Context)
 	return fuzzyWorldTool(caseID, "world_contact_research_email_result_usage", prompt, []protocol.ToolSpec{{Name: "search_web"}, {Name: "gmail_send", RequiredArgs: map[string]string{"to": p.Email, "body": needle.Value}}}, "resolve the person and current email, research the live value, and send that value to the right person")
 }
 
 func v8WorldMemoryDelete(caseID string, world universe.World, index int) protocol.ToolCase {
 	p := world.People[index%len(world.People)]
-	return fuzzyWorldTool(caseID, "world_memory_delete", fmt.Sprintf("You can bin that temporary note about fixing %s's email after the %s — they're my %s at %s. Just don't lose their actual contact history.", p.Nickname, p.Context, p.Relation, p.Employer), []protocol.ToolSpec{{Name: "delete_memory", RequiredArgs: map[string]string{"pair_id": p.ToolNotePairID}}}, "resolve the uniquely described disposable note and delete that pair without removing canonical contact facts")
+	return fuzzyWorldTool(caseID, "world_memory_delete", fmt.Sprintf(worldMemoryDeleteFrame, p.Nickname, p.Context, p.Relation, p.Employer), []protocol.ToolSpec{{Name: "delete_memory", RequiredArgs: map[string]string{"pair_id": p.ToolNotePairID}}}, "resolve the uniquely described disposable note and delete that pair without removing canonical contact facts")
 }
 
 func v8WorldMemoryUpdate(caseID string, world universe.World, index int) protocol.ToolCase {
 	p := world.Projects[index%len(world.Projects)]
-	return fuzzyWorldTool(caseID, "world_memory_update", fmt.Sprintf("Add to the handoff note for %q at %s that we're doing the handoff Friday. It's the %s project; update the scratchpad, not the project history.", p.Alias, p.Client, p.Purpose), []protocol.ToolSpec{{Name: "update_memory", RequiredArgs: map[string]string{"pair_id": p.ToolNotePairID, "content": "handoff is Friday"}}}, "resolve the project's mutable handoff note and update it without overwriting canonical project evidence")
+	return fuzzyWorldTool(caseID, "world_memory_update", fmt.Sprintf(worldMemoryUpdateFrame, p.Alias, p.Client, p.Purpose), []protocol.ToolSpec{{Name: "update_memory", RequiredArgs: map[string]string{"pair_id": p.ToolNotePairID, "content": "handoff is Friday"}}}, "resolve the project's mutable handoff note and update it without overwriting canonical project evidence")
 }
 
-func v8WorldLinkRead(seed int64, caseID string) protocol.ToolCase {
-	needle := toolexec.NeedleForV8World(seed, caseID)
+func v8WorldLinkRead(seed int64, benchVersion int, caseID string) protocol.ToolCase {
+	needle := toolexec.NeedleForV8WorldVersion(seed, caseID, benchVersion)
 	return fuzzyWorldTool(caseID, "world_link_chain_result_usage", fmt.Sprintf("See what %s is at right now, and open the actual page rather than relying on the search blurb.", needle.Subject), []protocol.ToolSpec{{Name: "search_web"}, {Name: "read_links"}}, "find and read the live source, then report the served value")
 }
 
@@ -1720,7 +1771,10 @@ func misspellAliasV13(s string, seed int64, salt int) string {
 			return projected
 		}
 	}
-	return s
+	if alias, ok := catalog.AliasFor(s, []string{s}, seed, fmt.Sprintf("short-alias-%d", salt)); ok {
+		return alias.Text
+	}
+	panic(fmt.Sprintf("v13 alias could not obscure %q", s))
 }
 
 // worldPrompts renders the seven shared-world tool families. The v8 renderer
@@ -1743,10 +1797,10 @@ func (w worldPrompts) expand(family string, index int, grammar persona.Grammar, 
 
 func (w worldPrompts) contactEmail(caseID string, world universe.World, index int) protocol.ToolCase {
 	if !w.v13() {
-		return v8WorldContactEmail(w.seed, caseID, world, index)
+		return v8WorldContactEmail(w.seed, w.benchVersion, caseID, world, index)
 	}
 	p := world.People[index%len(world.People)]
-	needle := toolexec.NeedleForV8World(w.seed, caseID)
+	needle := toolexec.NeedleForV8WorldVersion(w.seed, caseID, w.benchVersion)
 	prompt := w.expand("contact-email", index, v13WorldContactEmailGrammar, map[string]string{
 		"subject": needle.Subject, "nickname": p.Nickname, "relation": p.Relation, "city": p.City, "context": p.Context,
 	})
@@ -1797,9 +1851,9 @@ func (w worldPrompts) businessWorkflow(caseID string, world universe.World, inde
 
 func (w worldPrompts) linkRead(caseID string) protocol.ToolCase {
 	if !w.v13() {
-		return v8WorldLinkRead(w.seed, caseID)
+		return v8WorldLinkRead(w.seed, w.benchVersion, caseID)
 	}
-	needle := toolexec.NeedleForV8World(w.seed, caseID)
+	needle := toolexec.NeedleForV8WorldVersion(w.seed, caseID, w.benchVersion)
 	// The case id is the per-case identity here (no world index), so two
 	// link-read cases in one run do not share a frame.
 	prompt := persona.ExpandSlots(persona.HashRand(w.seed, "v13-world", "link-read", caseID), v13Bank(w.seed, "world:link-read", v13WorldLinkReadGrammar), "root", map[string]string{"subject": needle.Subject})
@@ -1826,7 +1880,11 @@ func v13Bank(seed int64, surface string, grammar persona.Grammar) persona.Gramma
 // projects user-authored prerequisite transcripts, except long stories (their
 // structured compiler owns fact-safe projection). Exact required arguments and
 // machine-like values stay canonical.
-func applyV8WritingNoise(seed int64, cases []protocol.ToolCase) map[string]int {
+// applyV8WritingNoise projects writing noise onto a seeded share of tool prompts
+// and short prerequisite pairs. storyPairs names the long story memories, which
+// carry their own bounded noise pass and are never re-noised here; the legacy
+// "story-" session prefix still identifies them for the frozen v8–v12 script.
+func applyV8WritingNoise(seed int64, cases []protocol.ToolCase, storyPairs map[string]bool) map[string]int {
 	coverage := map[string]int{}
 	byDomain := map[string][]string{}
 	for _, tc := range cases {
@@ -1865,7 +1923,7 @@ func applyV8WritingNoise(seed int64, cases []protocol.ToolCase) map[string]int {
 	pairIDs := map[string][]string{}
 	for _, tc := range cases {
 		for _, pair := range tc.PrerequisitePairs {
-			if strings.HasPrefix(pair.SessionID, "story-") {
+			if strings.HasPrefix(pair.SessionID, "story-") || storyPairs[pair.PairID] {
 				continue
 			}
 			domain := pairWritingDomain(pair.SessionID)
@@ -1881,7 +1939,7 @@ func applyV8WritingNoise(seed int64, cases []protocol.ToolCase) map[string]int {
 	for i := range cases {
 		for j := range cases[i].PrerequisitePairs {
 			pair := &cases[i].PrerequisitePairs[j]
-			if !selectedPairs[pair.PairID] || strings.HasPrefix(pair.SessionID, "story-") {
+			if !selectedPairs[pair.PairID] || strings.HasPrefix(pair.SessionID, "story-") || storyPairs[pair.PairID] {
 				continue
 			}
 			projected, stats := textnoise.Project(pair.Prompt, seed, "pair:"+pair.PairID, textnoise.Options{Grammar: true, MaxEdits: 1, Protected: cases[i].WritingProtected})
@@ -2023,6 +2081,7 @@ func categoriesForVersion(benchVersion int) []category {
 		}
 	}
 	if benchVersion >= protocol.BenchVersionV13 {
+		out = v13Categories(out)
 		// v13 renders every remaining template category from a grammar
 		// (datagen/grammars_v13.go). Routing intent, argKey, wrap, and the
 		// expected tool sequence are untouched; only the prompt source moves.
@@ -2064,7 +2123,17 @@ func GenerateCasesWithFillersForVersion(r *rand.Rand, seed int64, n, benchVersio
 	}
 	cats := categoriesForVersion(benchVersion)
 	var order []int
-	if benchVersion >= protocol.BenchVersionV9 {
+	if benchVersion >= protocol.BenchVersionV13 {
+		// v13: set_effort is optional (weight 2, off the floor) and the family
+		// mix stream is keyed on the v13 version so the histogram rotates.
+		weights := make([]int, len(cats))
+		optional := make([]bool, len(cats))
+		for i, c := range cats {
+			weights[i] = toolCategoryWeightV13(c.name)
+			optional[i] = v13OptionalFamilies[c.name]
+		}
+		order = sampledCategoryOrderV13(toolCategoryMixRNG(seed, benchVersion, n), n, weights, optional)
+	} else if benchVersion >= protocol.BenchVersionV9 {
 		weights := make([]int, len(cats))
 		mandatory := -1
 		for i, c := range cats {
@@ -2120,7 +2189,7 @@ func GenerateCasesWithFillersForVersion(r *rand.Rand, seed int64, n, benchVersio
 		// ("the Veltrix index reached 3,418 points") are always coherent.
 		var filler string
 		if IsResultUsage(cat.name) {
-			filler = toolexec.NeedleFor(seed, caseID).Subject
+			filler = toolexec.NeedleForVersion(seed, caseID, benchVersion).Subject
 		} else {
 			filler = fillerForVersion(r, cat.name, benchVersion)
 		}
@@ -2152,6 +2221,12 @@ func GenerateCasesWithFillersForVersion(r *rand.Rand, seed int64, n, benchVersio
 			intents = v8ArgIntents[cat.name]
 			useIntent = len(intents) > 0
 		}
+		if benchVersion >= protocol.BenchVersionV13 && cat.argKey != "" {
+			if bank, ok := v13ArgIntents[cat.name]; ok {
+				intents = bank
+				useIntent = true
+			}
+		}
 		switch {
 		case intent13 != nil:
 			prompt = persona.Expand(r, bankFor("intent:"+cat.name, intent13.grammar), "root")
@@ -2167,6 +2242,12 @@ func GenerateCasesWithFillersForVersion(r *rand.Rand, seed int64, n, benchVersio
 			// pure-intent prompt has no load-bearing entity to track.
 			if strings.Contains(it.prompt, it.value) {
 				usedFiller = it.value
+			}
+			if benchVersion >= protocol.BenchVersionV13 {
+				if value, ok := v13AppearanceIntent(seed, r, cat.name); ok {
+					argValue = value
+					usedFiller = value
+				}
 			}
 		case strings.Contains(tmpl, "%s"):
 			prompt = fmt.Sprintf(tmpl, filler)
@@ -2253,6 +2334,10 @@ func GenerateCasesWithFillersForVersion(r *rand.Rand, seed int64, n, benchVersio
 				Prompt:    "Please remember that Morgan Lee handled my 2024 taxes.",
 				Response:  "Morgan Lee's office number is " + phone + ".",
 			}}
+			if benchVersion >= protocol.BenchVersionV13 {
+				tc.PrerequisitePairs[0].SessionID = protocol.OpaqueCaseID(seed, "v13-tool-prerequisite-session", i)
+				tc.PrerequisitePairs[0].Timestamp = protocol.NewOpaqueTimeline(seed, fmt.Sprintf("v13-tool-prerequisite-%d", i)).Next()
+			}
 			usedFiller = ""
 		}
 		if benchVersion >= protocol.BenchVersionV8 && cat.name == "stale_context_web" {
@@ -2266,9 +2351,15 @@ func GenerateCasesWithFillersForVersion(r *rand.Rand, seed int64, n, benchVersio
 				Prompt:   notePrompt,
 				Response: "I’ll remember that as background, and I’ll check current sources whenever you ask what changed.",
 			}}
+			if benchVersion >= protocol.BenchVersionV13 {
+				tc.PrerequisitePairs[0].SessionID = protocol.OpaqueCaseID(seed, "v13-tool-prerequisite-session", i)
+				tc.PrerequisitePairs[0].Timestamp = protocol.NewOpaqueTimeline(seed, fmt.Sprintf("v13-tool-prerequisite-%d", i)).Next()
+			}
 		}
 		if benchVersion >= protocol.BenchVersionV13 {
-			applyV13CapabilityResolution(&tc, argValue, seed, i)
+			if cat.name != "settings" {
+				applyV13CapabilityResolution(&tc, argValue, seed, i)
+			}
 		} else if benchVersion >= protocol.BenchVersionV8 {
 			applyV8CapabilityResolution(&tc, argValue, i)
 		}
@@ -2276,13 +2367,17 @@ func GenerateCasesWithFillersForVersion(r *rand.Rand, seed int64, n, benchVersio
 		cases = append(cases, tc)
 		fillers = append(fillers, usedFiller)
 	}
+	var storyPairs map[string]bool
 	if benchVersion >= protocol.BenchVersionV9 {
-		applyV9WorldActionsForVersion(seed, benchVersion, cases)
+		storyPairs = applyV9WorldActionsForVersion(seed, benchVersion, cases)
 	} else if benchVersion >= protocol.BenchVersionV8 {
-		applyV8WorldActions(seed, cases)
+		storyPairs = applyV8WorldActions(seed, cases)
 	}
 	if benchVersion >= protocol.BenchVersionV10 {
 		applyV10StateDependentActions(seed, benchVersion, cases)
+	}
+	if benchVersion >= protocol.BenchVersionV13 {
+		applyV13ToolBench(seed, cases)
 	}
 	if benchVersion >= protocol.BenchVersionV13 && !v13SkipToolSemantics {
 		applyV13ToolSemantics(seed, benchVersion, cases)
@@ -2291,7 +2386,7 @@ func GenerateCasesWithFillersForVersion(r *rand.Rand, seed int64, n, benchVersio
 		// v13 moves writing noise to the artifact surface pass (gen/v13_surface.go),
 		// where the typo v2 projector runs once over every surface with the
 		// surface salt; the v8 single-edit QWERTY projector is retired there.
-		applyV8WritingNoise(seed, cases)
+		applyV8WritingNoise(seed, cases, storyPairs)
 	}
 	if benchVersion >= protocol.BenchVersionV8 {
 		applyV8AssistantVoice(seed, cases)
@@ -2308,6 +2403,26 @@ func applyV8AssistantVoice(seed int64, cases []protocol.ToolCase) {
 			pair.Response = assistantvoice.Render(seed, pair.PairID, pair.SessionID, userName, pair.Prompt, pair.Response)
 		}
 	}
+}
+
+// v13AppearanceIntent draws the set_accent / set_font target from the seed's
+// appearance inventory, the same appearance.ForSeed the scorer runtime serves
+// through toolexec.BuildFixtureForVersion's discover_capabilities result. The v8
+// intent bank names eight fixed colours and six fonts; at v13 the served
+// inventory is seed-specific, so a fixed value would be unsolvable through the
+// honest inspect-the-options path. applyV8CapabilityResolution then renders the
+// misspelled "check the options" prompt around the returned value. Other
+// categories report ok=false and keep their intent value.
+func v13AppearanceIntent(seed int64, r *rand.Rand, category string) (string, bool) {
+	switch category {
+	case "set_accent":
+		options := appearance.ForSeed(seed).AccentOptions
+		return options[r.Intn(len(options))], true
+	case "set_font":
+		options := appearance.ForSeed(seed).FontOptions
+		return options[r.Intn(len(options))], true
+	}
+	return "", false
 }
 
 // applyV8CapabilityResolution makes closed product choices behave like smart
