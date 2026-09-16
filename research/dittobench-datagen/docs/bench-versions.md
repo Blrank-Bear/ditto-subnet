@@ -546,6 +546,16 @@ gate stack) and `efficiency.ProductionReadyForVersion` treats v13 as
 technically ready; the runtime's advertised `supported_bench_versions` does
 **not** include 13 until the last v13 PR.
 
+### Case families (#1520, #1836, #1837, #1838)
+
+The four opt-in case-family generators — semantic business-event programs,
+personal-life programs, family compiler v2, and the injection tail — are
+documented in [v13-case-families.md](v13-case-families.md). Every case they
+emit is stamped `bench_version 13` and carries grader-only `Claims` (exactly
+one `Critical` claim at weight 1, or partial-weight non-critical claims summing
+to 1); none is wired into the suite budget until the envelope PR, so the
+placeholder known vector above is untouched by them.
+
 ### Surface levers (#1828 grammars + typo v2, #1832 salted surface pass)
 
 v13 keeps every v12 program semantic, oracle, run size, grader rule and the v9
@@ -624,6 +634,7 @@ The wire/artifact schema is otherwise unchanged: v13 emits the same
 `MemoryCase` / `ToolCase` / `DatasetArtifact` shapes, with the same
 grading-authoritative fields. The harness wire (`RunRequest`, `SeedRequest`)
 does not change; `surface_salt` is an artifact/audit field only.
+
 
 ### Governing invariants
 
