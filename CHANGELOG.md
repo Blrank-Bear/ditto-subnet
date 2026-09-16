@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.273.1 (2026-09-16)
+
+### Bug Fixes
+
+- Preserve v13 claim evidence in signed report wire format
+  ([#1944](https://github.com/ditto-assistant/ditto-subnet/pull/1944),
+  [`bcd7337`](https://github.com/ditto-assistant/ditto-subnet/commit/bcd733721d50012f5cca3f20d50c1d536b2675b5))
+
+
 ## v0.273.0 (2026-09-16)
 
 ### Documentation
