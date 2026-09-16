@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.271.0 (2026-09-16)
+
+### Features
+
+- **datagen**: Integrate v13 typed claims and assertion-aware grading
+  ([#1936](https://github.com/ditto-assistant/ditto-subnet/pull/1936),
+  [`52b48f2`](https://github.com/ditto-assistant/ditto-subnet/commit/52b48f28d37522a10c09d3f3ba494dc13591794a))
+
+
 ## v0.270.0 (2026-09-16)
 
 ### Features
