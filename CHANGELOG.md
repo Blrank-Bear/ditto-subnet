@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.277.1 (2026-09-17)
+
+### Bug Fixes
+
+- Keep v13 effort prompts coupled to graded intent
+  ([#1967](https://github.com/ditto-assistant/ditto-subnet/pull/1967),
+  [`ef7da1e`](https://github.com/ditto-assistant/ditto-subnet/commit/ef7da1ed01c37f895e32a34cc078ee01832f9319))
+
+
 ## v0.277.0 (2026-09-17)
 
 ### Bug Fixes
