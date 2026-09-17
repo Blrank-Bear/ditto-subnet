@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.274.1 (2026-09-17)
+
+### Bug Fixes
+
+- **security**: Revoke Brian operator access
+  ([#1945](https://github.com/ditto-assistant/ditto-subnet/pull/1945),
+  [`75e0991`](https://github.com/ditto-assistant/ditto-subnet/commit/75e0991e2daf488127e4f38575915d8def73c748))
+
+
 ## v0.274.0 (2026-09-16)
 
 ### Features
