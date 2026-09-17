@@ -119,6 +119,11 @@ from ditto.api_models.validator_weights_fold import (
     WeightsFold,
     weights_fold_signing_token,
 )
+from ditto.api_models.weight_receipt import (
+    SubmitWeightReceiptRequest,
+    SubmitWeightReceiptResponse,
+    weight_receipt_signing_message,
+)
 from ditto.api_server.anti_copy_comparison import ANTI_COPY_ALGORITHM_VERSION
 from ditto.api_server.artifact_audit import client_ip, request_detail
 from ditto.api_server.attestation import expected_netuid
@@ -344,6 +349,11 @@ from ditto.db.queries.validator_auth import (
     ValidatorRequestReplayError,
     consume_validator_nonce,
 )
+from ditto.db.queries.weight_receipts import (
+    WeightReceiptConflict,
+    record_weight_receipt,
+)
+from ditto.db.queries.weights_fold_history import record_verified_weights_fold
 from ditto.metrics import (
     VALIDATOR_DISPATCH_DECLINED,
     VALIDATOR_HEARTBEAT_PAYLOAD_DEGRADED,
@@ -2957,6 +2967,53 @@ async def _validated_heartbeat_work(
 
 
 @router.post(
+    "/weight-submission-receipt",
+    response_model=SubmitWeightReceiptResponse,
+    responses={
+        401: {"description": "Invalid validator identity, signature, or timestamp."},
+        409: {"description": "Receipt conflicts with its immutable job or ledger."},
+    },
+)
+async def submit_weight_receipt(
+    request: Request,
+    request_body: SubmitWeightReceiptRequest,
+    validator_hotkey: ValidatorDep,
+    session: SessionDep,
+) -> SubmitWeightReceiptResponse:
+    """Durably acknowledge a signed commit claim without granting source release."""
+    if len(await request.body()) > 3 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="weight receipt payload too large")
+    receipt = request_body.receipt
+    if receipt.validator_hotkey != validator_hotkey:
+        raise ValidatorAuthError("weight receipt hotkey does not match header")
+    if receipt.netuid != request.app.state.config.chain.netuid:
+        raise ValidatorAuthError("weight receipt belongs to another subnet")
+    now = datetime.now(UTC)
+    if abs(int(now.timestamp()) - request_body.timestamp) > _HEARTBEAT_MAX_SKEW_SECONDS:
+        raise ValidatorAuthError(
+            "weight receipt signature timestamp is outside the window"
+        )
+    if not _verify_signature(
+        validator_hotkey,
+        weight_receipt_signing_message(receipt, request_body.timestamp),
+        request_body.signature,
+    ):
+        raise ValidatorAuthError("weight receipt signature verification failed")
+    try:
+        async with session.begin():
+            digest = await record_weight_receipt(
+                session, submission=request_body, now=now
+            )
+    except WeightReceiptConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return SubmitWeightReceiptResponse(
+        request_id=receipt.request_id,
+        attempt_id=receipt.attempt.attempt_id,
+        receipt_digest=digest,
+    )
+
+
+@router.post(
     "/heartbeat",
     response_model=ValidatorHeartbeatResponse,
     responses={
@@ -3168,6 +3225,20 @@ async def heartbeat(
             seen_at=now,
             signature=request_body.signature,
         )
+        if accepted and request_body.weights_fold is not None:
+            # Authenticated history must survive the next heartbeat overwriting
+            # the latest fold. A capture failure never compromises liveness;
+            # missing history instead keeps public source private.
+            try:
+                async with session.begin_nested():
+                    await record_verified_weights_fold(
+                        session,
+                        validator_hotkey=validator_hotkey,
+                        heartbeat=request_body,
+                        now=now,
+                    )
+            except Exception:
+                logger.exception("verified weight fold history could not be recorded")
         # Read after the upsert and inside the same transaction, so the roster
         # the reporter acts on is consistent with the heartbeat just stored.
         leases = await _lease_roster(
@@ -4483,12 +4554,12 @@ async def _confirm_king_onchain_weights(
     *,
     now: datetime,
 ) -> None:
-    """Arm any ever-king's public window once the chain confirms its weights.
+    """Retain legacy weight observations for diagnostics, never release source.
 
     Reads the REVEALED weight matrix (post commit-reveal) and stamps
     ``weight_confirmed_at`` for every ever-king miner that now has validator
-    weight set on it. Erring toward weights, not realized emission magnitude, so
-    a genuine king is never trapped private. Prefers the public weights cache so
+    weight set on it. These observations never authorize source disclosure;
+    completed winner-emission proof is a separate gate. Prefers the cache so
     the score path does not wait on a 10-21s substrate read; a cold cache
     refreshes in the background. Throttled via ``app_state`` so a pending king
     does not spawn a chain read per score. The caller wraps this best-effort so
@@ -6888,8 +6959,8 @@ async def submit_score(
                 # time this one was uploaded. Read against the release policy as
                 # it stood *then*, not as it stands now: judging a past upload
                 # by today's embargo would retroactively change what the miner
-                # could have downloaded. Under `disclosure = never` this is
-                # empty and every copy rule fires exactly as before.
+                # could have downloaded. Audited public fetches remain proof of
+                # publication even after release policy is paused or tightened.
                 submitted_at_utc = (
                     agent.created_at.replace(tzinfo=UTC)
                     if agent.created_at.tzinfo is None
