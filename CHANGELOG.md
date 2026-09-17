@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.276.1 (2026-09-17)
+
+### Bug Fixes
+
+- **dashboard**: Prioritize screening outcomes over retained scores
+  ([#1960](https://github.com/ditto-assistant/ditto-subnet/pull/1960),
+  [`10111ef`](https://github.com/ditto-assistant/ditto-subnet/commit/10111ef2fd8a70c3e1733f7fb979694b50458f46))
+
+- **screener**: Accept Platform reviewer budgets across consumers
+  ([#1959](https://github.com/ditto-assistant/ditto-subnet/pull/1959),
+  [`d9cce4d`](https://github.com/ditto-assistant/ditto-subnet/commit/d9cce4d16c8310ee6cbcb4b889fd98d311b50d15))
+
+
 ## v0.276.0 (2026-09-17)
 
 ### Features
