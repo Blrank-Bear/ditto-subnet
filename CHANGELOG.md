@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.276.0 (2026-09-17)
+
+### Features
+
+- **platform**: Top-five integrity double-check on a stronger reviewer posture
+  ([#1946](https://github.com/ditto-assistant/ditto-subnet/pull/1946),
+  [`efc3d3a`](https://github.com/ditto-assistant/ditto-subnet/commit/efc3d3a39d89acfbb19115078658f825b952e76f))
+
+
 ## v0.275.0 (2026-09-17)
 
 ### Features
