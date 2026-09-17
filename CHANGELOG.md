@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.277.2 (2026-09-17)
+
+### Bug Fixes
+
+- **platform**: Bind source disclosure to paid submission receipts
+  ([#1965](https://github.com/ditto-assistant/ditto-subnet/pull/1965),
+  [`756b7ef`](https://github.com/ditto-assistant/ditto-subnet/commit/756b7ef26804c2e39eb8bb4992eb7f9ee000302e))
+
+
 ## v0.277.1 (2026-09-17)
 
 ### Bug Fixes
