@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.275.0 (2026-09-17)
+
+### Features
+
+- **screener**: Fingerprint the public keep/declarative-preference compiler
+  ([#1947](https://github.com/ditto-assistant/ditto-subnet/pull/1947),
+  [`a7e2dce`](https://github.com/ditto-assistant/ditto-subnet/commit/a7e2dce5d7adf30ee41cac71a78d1f3df18e77e2))
+
+
 ## v0.274.1 (2026-09-17)
 
 ### Bug Fixes
