@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.276.2 (2026-09-17)
+
+### Bug Fixes
+
+- **screening**: Restore detailed miner review feedback
+  ([#1962](https://github.com/ditto-assistant/ditto-subnet/pull/1962),
+  [`b4f7621`](https://github.com/ditto-assistant/ditto-subnet/commit/b4f76215b06d065f3fdc426a8a8c8ad0ac7f0f4e))
+
+
 ## v0.276.1 (2026-09-17)
 
 ### Bug Fixes
