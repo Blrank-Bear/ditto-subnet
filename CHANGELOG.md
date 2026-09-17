@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.277.0 (2026-09-17)
+
+### Bug Fixes
+
+- **bench**: Bind prelaunch V13 restraint requests to visible contexts
+  ([#1964](https://github.com/ditto-assistant/ditto-subnet/pull/1964),
+  [`dde979a`](https://github.com/ditto-assistant/ditto-subnet/commit/dde979af0c4ae7af628d2d1982242debbcfc05cb))
+
+- **model-relay**: Never ship a trace artifact that is not a zstd frame
+  ([#1553](https://github.com/ditto-assistant/ditto-subnet/pull/1553),
+  [`913cdec`](https://github.com/ditto-assistant/ditto-subnet/commit/913cdec737f594b22c6fcd86abecd842aced2e6d))
+
+### Features
+
+- **dittobench-api**: Validator-minted case URLs attribute concurrent /run
+  ([#1491](https://github.com/ditto-assistant/ditto-subnet/pull/1491),
+  [`13321fe`](https://github.com/ditto-assistant/ditto-subnet/commit/13321fedd3780cf33f20f95993e97fd5fa840ad1))
+
+
 ## v0.276.2 (2026-09-17)
 
 ### Bug Fixes
