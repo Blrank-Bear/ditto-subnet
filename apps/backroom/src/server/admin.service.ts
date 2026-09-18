@@ -1,5 +1,12 @@
 import '@tanstack/react-start/server-only'
 
+import {
+  conversationAssessmentInputSchema,
+  conversationObservationsSchema,
+  conversationReportSchema,
+  conversationSettingsInputSchema,
+} from '../lib/conversation.schemas'
+
 import { benchmarkCanarySchema, issueBenchmarkCanaryInputSchema,
   getBenchmarkCanaryInputSchema, cancelBenchmarkCanaryInputSchema, listBenchmarkCanariesInputSchema,
 } from '../lib/benchmark-canary.schemas'
@@ -3125,4 +3132,22 @@ export async function fetchQuarantineBaselineDiffFile(rawInput: unknown, actor: 
     { actor },
   )
   return baselineDiffFileDetailSchema.parse(payload)
+}
+
+export async function fetchConversationAssessments(rawInput: unknown = {}) {
+  const input = conversationAssessmentInputSchema.parse(rawInput)
+  if (input.assessment_id) {
+    const payload = await platformAdminRequest(`/api/v1/admin/conversation-assessments/${input.assessment_id}/report`)
+    return conversationReportSchema.parse(payload)
+  }
+  const payload = await platformAdminRequest(`/api/v1/admin/conversation-assessments?limit=${input.limit}`)
+  return conversationObservationsSchema.parse(payload)
+}
+
+export async function setConversationSettings(actor: string, rawInput: unknown) {
+  const input = conversationSettingsInputSchema.parse(rawInput)
+  const payload = await platformAdminRequest('/api/v1/admin/conversation-assessments/settings', {
+    method: 'POST', body: { ...input, actor }, actor,
+  })
+  return conversationObservationsSchema.parse(payload)
 }

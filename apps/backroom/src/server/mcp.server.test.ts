@@ -178,6 +178,7 @@ describe('Backroom MCP tools', () => {
         'create_screener_bootstrap_grant',
         'get_screener_review_settings',
         'get_screener_fanout_shadow',
+        'get_conversation_assessments',
         'apply_screener_review_settings',
         'get_screener_policy_manifest',
         'rotate_screener_policy_manifest',
@@ -273,6 +274,7 @@ describe('Backroom MCP tools', () => {
         'start_runtime_profile',
         'set_source_release_policy',
         'set_submission_cooldown',
+        'set_conversation_settings',
         'unban_hotkey',
         'register_coding_catalog_release',
         'register_coding_private_v2_release',
@@ -334,7 +336,8 @@ describe('Backroom MCP tools', () => {
     // measured and merged; none of them is a tutorial.
     // Four canary operations add explicit lease identity/digest/CAS inputs;
     // measured catalog is 133,733 bytes. Descriptions remain short summaries.
-    expect(JSON.stringify(response.tools).length).toBeLessThanOrEqual(134_500)
+    // One bounded conversation observation tool adds ~900 bytes.
+    expect(JSON.stringify(response.tools).length).toBeLessThanOrEqual(135_500)
     const descriptions = response.tools.map((tool) => tool.description ?? '')
     // Includes concise rollout and protected-policy controls; tutorials live
     // in get_backroom_tool_help, not here. The budget admits the screener
@@ -2114,6 +2117,37 @@ describe('Backroom MCP tools', () => {
     await server.close()
   })
 
+  it('reads private conversation evidence through a read-only tool', async () => {
+    process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+    const assessmentId = '11111111-1111-4111-8111-111111111111'
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({
+      assessment_id: assessmentId,
+      agent_id: '22222222-2222-4222-8222-222222222222',
+      instrument: 'conversational-continuity-v1',
+      model: 'gpt-6-astra',
+      status: 'incomplete',
+      error_code: 'judge_cost_limit',
+      exchanges: [],
+      grades: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { client, server } = await connect([BACKROOM_READ_SCOPE])
+    const response = await client.callTool({
+      name: 'get_conversation_assessments',
+      arguments: { assessment_id: assessmentId },
+    })
+    expect(response.isError).not.toBe(true)
+    expect(readJsonResult(response)).toMatchObject({
+      status: 'incomplete', error_code: 'judge_cost_limit', grades: null,
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://platform-api.heyditto.ai/api/v1/admin/conversation-assessments/${assessmentId}/report`,
+      expect.any(Object),
+    )
+    await client.close()
+    await server.close()
+  })
+
   it('reads authoritative screener capacity and provider state', async () => {
     process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
     const fetchMock = vi.fn().mockResolvedValue(
@@ -2144,6 +2178,31 @@ describe('Backroom MCP tools', () => {
       'https://platform-api.heyditto.ai/api/v1/admin/screener-capacity',
       expect.any(Object),
     )
+    await client.close()
+    await server.close()
+  })
+
+  it('applies the conversation switch with the authenticated operator identity', async () => {
+    process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({
+      mode: 'shadow', instrument: 'conversational-continuity-v1', judge_model: 'gpt-6-astra',
+      settings_revision: 1, settings_actor: session.email, settings_reason: 'Start the shadow canary',
+      settings_updated_at: '2026-09-18T12:00:00Z', daily_budget_microusd: 150000000,
+      reserved_last_day_microusd: 0, proposed_submission_fee_rao: 200000000,
+      current_submission_fee_rao: 40000000, items: [],
+      fee_change_request: { expected_revision: 0, cooldown_seconds: 3600, fee_amount_rao: 200000000,
+        reason: 'Fund conversation assessment', actor: 'conversation-rollout', confirmation: 'example' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { client, server } = await connect([BACKROOM_READ_SCOPE, BACKROOM_WRITE_SCOPE])
+    const response = await client.callTool({name: 'set_conversation_settings', arguments: {
+      mode: 'shadow', expected_revision: 0, reason: 'Start the shadow canary',
+      confirmation: 'APPLY CONVERSATION SHADOW SETTINGS', actor: 'spoofed@example.com',
+    }})
+    expect(response.isError).not.toBe(true)
+    const options = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(String(options.body))).toMatchObject({ actor: session.email, mode: 'shadow', expected_revision: 0 })
+    expect(readJsonResult(response)).toMatchObject({ settings_revision: 1, mode: 'shadow' })
     await client.close()
     await server.close()
   })
