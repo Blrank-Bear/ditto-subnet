@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.279.1 (2026-09-18)
+
+### Bug Fixes
+
+- **screener**: Stop forcing ZDR provider routing
+  ([#1997](https://github.com/ditto-assistant/ditto-subnet/pull/1997),
+  [`c38c13f`](https://github.com/ditto-assistant/ditto-subnet/commit/c38c13f85797cb705f6675f862e8d26d9dd9fb47))
+
+
 ## v0.279.0 (2026-09-18)
 
 ### Bug Fixes
