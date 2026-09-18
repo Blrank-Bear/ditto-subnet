@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.278.0 (2026-09-18)
+
+### Features
+
+- **validator**: Diagnose missing source emission receipts
+  ([#1987](https://github.com/ditto-assistant/ditto-subnet/pull/1987),
+  [`a430160`](https://github.com/ditto-assistant/ditto-subnet/commit/a4301607ca788eb287a5e8d608905a81e6b3577a))
+
+
 ## v0.277.6 (2026-09-18)
 
 ### Bug Fixes
