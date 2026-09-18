@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.280.1 (2026-09-18)
+
+### Bug Fixes
+
+- **screener**: Strengthen review prompts and draft policy v14
+  ([#2001](https://github.com/ditto-assistant/ditto-subnet/pull/2001),
+  [`6f08236`](https://github.com/ditto-assistant/ditto-subnet/commit/6f08236cabdc422163cb2b8ea65e6b3821e2bdee))
+
+
 ## v0.280.0 (2026-09-18)
 
 ### Features
