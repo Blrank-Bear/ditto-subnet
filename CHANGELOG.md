@@ -2,6 +2,93 @@
 
 <!-- version list -->
 
+## v0.279.0 (2026-09-18)
+
+### Bug Fixes
+
+- Match private protected values at token boundaries
+  ([#1991](https://github.com/ditto-assistant/ditto-subnet/pull/1991),
+  [`7bd1ed0`](https://github.com/ditto-assistant/ditto-subnet/commit/7bd1ed04ed46b838f4d0738d1cc2288d6adba13c))
+
+- Recover complete private benchmark receipt checkpoints
+  ([#1978](https://github.com/ditto-assistant/ditto-subnet/pull/1978),
+  [`8fdfacd`](https://github.com/ditto-assistant/ditto-subnet/commit/8fdfacd7f8f4724c9d6fa7a4bb29f345212c3e97))
+
+- Recover sparse v13 cross-user anchors
+  ([#1977](https://github.com/ditto-assistant/ditto-subnet/pull/1977),
+  [`50c455b`](https://github.com/ditto-assistant/ditto-subnet/commit/50c455b8441c1a1d3bce293b86ccc7d4116e5078))
+
+- **bench**: Attribute V13 tool inference to its case
+  ([#1976](https://github.com/ditto-assistant/ditto-subnet/pull/1976),
+  [`97c788b`](https://github.com/ditto-assistant/ditto-subnet/commit/97c788b21f1d548760079931f8e11d23cd7af1f1))
+
+- **bench**: Complete V13 public qualification controls
+  ([#1969](https://github.com/ditto-assistant/ditto-subnet/pull/1969),
+  [`323594a`](https://github.com/ditto-assistant/ditto-subnet/commit/323594ada5be7ee333e65d00b4eb4b140bec499d))
+
+- **bench**: Expand wire-visible V13 public tool controls
+  ([#1963](https://github.com/ditto-assistant/ditto-subnet/pull/1963),
+  [`8e2841c`](https://github.com/ditto-assistant/ditto-subnet/commit/8e2841cfe8ec880ff6ddd223fd02c0ba012caa0b))
+
+- **bench**: Recover bounded private generation failures
+  ([#1973](https://github.com/ditto-assistant/ditto-subnet/pull/1973),
+  [`e6d9cfb`](https://github.com/ditto-assistant/ditto-subnet/commit/e6d9cfbeff9e62aa8f0c07811a3fb852ad52d461))
+
+- **bench**: Reject overlapping probe training and evaluation seeds
+  ([#1971](https://github.com/ditto-assistant/ditto-subnet/pull/1971),
+  [`c3a8068`](https://github.com/ditto-assistant/ditto-subnet/commit/c3a8068e6817c276ab7a22f7750de5d834c13712))
+
+- **bench**: Reject private artifacts with altered protected contexts
+  ([#1968](https://github.com/ditto-assistant/ditto-subnet/pull/1968),
+  [`dffbe1f`](https://github.com/ditto-assistant/ditto-subnet/commit/dffbe1f51cde2450fdc4639884d2384b1a54167b))
+
+- **datagen**: Recover v13 isolation wording safely
+  ([#1992](https://github.com/ditto-assistant/ditto-subnet/pull/1992),
+  [`9c7f27a`](https://github.com/ditto-assistant/ditto-subnet/commit/9c7f27a72d540e348fa3a214ac2db31a821e30d0))
+
+### Features
+
+- **bench**: Add private surface integrity foundation
+  ([#1949](https://github.com/ditto-assistant/ditto-subnet/pull/1949),
+  [`2dbaba7`](https://github.com/ditto-assistant/ditto-subnet/commit/2dbaba7a89af86b0785d3d31c1d782b499736336))
+
+- **bench**: Fail closed on unqualified public parser controls
+  ([#1958](https://github.com/ditto-assistant/ditto-subnet/pull/1958),
+  [`d1882b0`](https://github.com/ditto-assistant/ditto-subnet/commit/d1882b0d38e3d418df732dbf46ee9fbe3d209c17))
+
+- **bench**: Guard private producer inference spending
+  ([#1970](https://github.com/ditto-assistant/ditto-subnet/pull/1970),
+  [`e11de0a`](https://github.com/ditto-assistant/ditto-subnet/commit/e11de0a6b999d35dba525fc2228d929386887dd2))
+
+- **datagen**: Produce private surfaces with independent semantic validation
+  ([#1954](https://github.com/ditto-assistant/ditto-subnet/pull/1954),
+  [`5f29ce5`](https://github.com/ditto-assistant/ditto-subnet/commit/5f29ce509ebbb1d6e6180fef7151718f7a01f025))
+
+- **platform**: Fence durable private dataset preparation
+  ([#1955](https://github.com/ditto-assistant/ditto-subnet/pull/1955),
+  [`90e6bdc`](https://github.com/ditto-assistant/ditto-subnet/commit/90e6bdc063fb3d35492396611205bf8eed706b2d))
+
+- **platform**: Pin immutable private benchmark datasets
+  ([#1950](https://github.com/ditto-assistant/ditto-subnet/pull/1950),
+  [`5dd5974`](https://github.com/ditto-assistant/ditto-subnet/commit/5dd5974e2d8f6fbce482c0025561c8da0f65621f))
+
+- **platform**: Prepare private V13 leases without public fallback
+  ([#1957](https://github.com/ditto-assistant/ditto-subnet/pull/1957),
+  [`0749f68`](https://github.com/ditto-assistant/ditto-subnet/commit/0749f68059d93c3909c10c814ee581209b970e0e))
+
+- **platform**: Run fenced private dataset producer workers
+  ([#1956](https://github.com/ditto-assistant/ditto-subnet/pull/1956),
+  [`846c77c`](https://github.com/ditto-assistant/ditto-subnet/commit/846c77c53aeff0a5f3950de83b0d1180fc622ad8))
+
+- **scorer**: Execute pinned private v13 artifacts
+  ([#1952](https://github.com/ditto-assistant/ditto-subnet/pull/1952),
+  [`ae5b7fd`](https://github.com/ditto-assistant/ditto-subnet/commit/ae5b7fd13d6a5e86909ebe010c3e3504e253058a))
+
+- **validator**: Deliver private benchmark artifacts under signed leases
+  ([#1953](https://github.com/ditto-assistant/ditto-subnet/pull/1953),
+  [`baf9bd1`](https://github.com/ditto-assistant/ditto-subnet/commit/baf9bd1154d849b0c3f2b4859571a8f911b24838))
+
+
 ## v0.278.2 (2026-09-18)
 
 ### Bug Fixes
