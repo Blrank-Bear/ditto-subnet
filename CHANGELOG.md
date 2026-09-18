@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.280.0 (2026-09-18)
+
+### Features
+
+- **platform**: Show pending source disclosures with release dates
+  ([#1996](https://github.com/ditto-assistant/ditto-subnet/pull/1996),
+  [`2c50dcc`](https://github.com/ditto-assistant/ditto-subnet/commit/2c50dccdfd191df42863508f654f99a0abcae95d))
+
+
 ## v0.279.1 (2026-09-18)
 
 ### Bug Fixes
