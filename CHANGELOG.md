@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.281.1 (2026-09-18)
+
+### Bug Fixes
+
+- **screener**: Connect the isolated conversation runtime
+  ([#2009](https://github.com/ditto-assistant/ditto-subnet/pull/2009),
+  [`91dd164`](https://github.com/ditto-assistant/ditto-subnet/commit/91dd16443b08a4d148e8608ad9fd6aa24d72e080))
+
+
 ## v0.281.0 (2026-09-18)
 
 ### Features
