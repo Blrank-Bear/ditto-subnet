@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.277.4 (2026-09-18)
+
+### Bug Fixes
+
+- **platform**: Admit audited Subtensor v466 source receipts
+  ([#1974](https://github.com/ditto-assistant/ditto-subnet/pull/1974),
+  [`a58e24e`](https://github.com/ditto-assistant/ditto-subnet/commit/a58e24efbbedbbf38635753c6715c0e4165f0d5a))
+
+
 ## v0.277.3 (2026-09-18)
 
 ### Bug Fixes
