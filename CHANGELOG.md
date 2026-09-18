@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.278.2 (2026-09-18)
+
+### Bug Fixes
+
+- Reconcile source payouts before archive scanning
+  ([#1990](https://github.com/ditto-assistant/ditto-subnet/pull/1990),
+  [`07dc7f4`](https://github.com/ditto-assistant/ditto-subnet/commit/07dc7f4036214043de9768091eda51d650208fc4))
+
+
 ## v0.278.1 (2026-09-18)
 
 ### Bug Fixes
