@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.277.6 (2026-09-18)
+
+### Bug Fixes
+
+- **platform**: Accept validator receipt signature prefix
+  ([#1988](https://github.com/ditto-assistant/ditto-subnet/pull/1988),
+  [`a7fbe57`](https://github.com/ditto-assistant/ditto-subnet/commit/a7fbe5765d6cb20cc2a48885b46571c536def4ec))
+
+
 ## v0.277.5 (2026-09-18)
 
 ### Bug Fixes
