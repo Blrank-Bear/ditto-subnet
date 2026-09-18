@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.281.3 (2026-09-18)
+
+### Bug Fixes
+
+- **platform**: Authorize one audited conversation retry
+  ([#2016](https://github.com/ditto-assistant/ditto-subnet/pull/2016),
+  [`2969735`](https://github.com/ditto-assistant/ditto-subnet/commit/296973556b4a0efeef687919a1f578a80b0813bc))
+
+
 ## v0.281.2 (2026-09-18)
 
 ### Bug Fixes
