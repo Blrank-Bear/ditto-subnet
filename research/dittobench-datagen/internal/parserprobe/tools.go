@@ -32,6 +32,8 @@ type toolParser struct {
 	trailers  []string
 	routing   []frame // v12 composed routing-cue asks
 	discovery []discoveryFrameV13
+	named     []namedToolFrameV13
+	noteEdits map[string]string
 }
 
 // grammarExpansionCap bounds the enumeration of one grammar; the audited
@@ -145,14 +147,19 @@ func appendAll(prefixes, suffixes []string) []string {
 
 // toolPrediction is the parser's outcome signature for one tool prompt.
 type toolPrediction struct {
-	category string
-	tools    []protocol.ToolSpec
-	ok       bool
+	category     string
+	tools        []protocol.ToolSpec
+	ok           bool
+	effectAnswer string
+	memoryEffect bool
 }
 
 // classifyTool strips wrap lead-ins/trailers, matches the frame banks, and
 // resolves seed-bound arguments from the store.
 func (tp *toolParser) classifyTool(prompt string, st *store) toolPrediction {
+	if p, matched := tp.namedPredictionV13(prompt, st); matched {
+		return p
+	}
 	candidates := tp.unwrap(strings.TrimSpace(prompt))
 	// Specific frames first across every unwrapped variant, then the composed
 	// routing cues, and only then the bare "%s" catch-all categories (no_tool,
