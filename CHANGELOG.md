@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.281.0 (2026-09-18)
+
+### Features
+
+- **screener**: Add bounded conversation memory assessments in shadow mode
+  ([#2006](https://github.com/ditto-assistant/ditto-subnet/pull/2006),
+  [`8bee0c5`](https://github.com/ditto-assistant/ditto-subnet/commit/8bee0c59e7c28f2732efd18975bcd673c61f8f8a))
+
+
 ## v0.280.1 (2026-09-18)
 
 ### Bug Fixes
