@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.278.1 (2026-09-18)
+
+### Bug Fixes
+
+- Compare Pylon receipt accounts by public key
+  ([#1989](https://github.com/ditto-assistant/ditto-subnet/pull/1989),
+  [`56d9b7c`](https://github.com/ditto-assistant/ditto-subnet/commit/56d9b7cf54788490d2d3a7049807cda2394afd8f))
+
+
 ## v0.278.0 (2026-09-18)
 
 ### Features
