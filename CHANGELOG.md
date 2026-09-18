@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.277.3 (2026-09-18)
+
+### Bug Fixes
+
+- **platform**: Accept SCALE tuple events in payout provenance
+  ([#1972](https://github.com/ditto-assistant/ditto-subnet/pull/1972),
+  [`ad1930b`](https://github.com/ditto-assistant/ditto-subnet/commit/ad1930b6087c10db2f4457fcabb4cfbdd4a083ae))
+
+
 ## v0.277.2 (2026-09-17)
 
 ### Bug Fixes
