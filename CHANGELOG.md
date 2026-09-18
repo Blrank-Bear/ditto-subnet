@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.281.2 (2026-09-18)
+
+### Bug Fixes
+
+- **screener**: Accept conversation text parts and retain failures
+  ([#2012](https://github.com/ditto-assistant/ditto-subnet/pull/2012),
+  [`fdc0327`](https://github.com/ditto-assistant/ditto-subnet/commit/fdc03270b6952f02962db414d4eda34b753ddb50))
+
+
 ## v0.281.1 (2026-09-18)
 
 ### Bug Fixes
