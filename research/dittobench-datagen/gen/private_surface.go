@@ -36,12 +36,41 @@ type PrivateSurfaceValidator interface {
 	Validate(context.Context, PrivateSurfaceRequest, string) error
 }
 
+// PrivateCandidateCheck retains the full protected-value set locally. The
+// returned checker reports no values, so rejected candidates can be retried
+// without disclosing answers absent from their source text to the provider.
+// It is mechanical validation only; independent semantic validation is required.
+func PrivateCandidateCheck(input DatasetArtifact, additionalProtected ...[]string) (func(string, string) error, error) {
+	if input.BenchVersion != protocol.BenchVersionV13 || input.SurfaceSalt == 0 {
+		return nil, errors.New("private surface: requires a salted v13 artifact")
+	}
+	protected := v13GlobalProtected(&input)
+	for _, extra := range additionalProtected {
+		protected = append(protected, extra...)
+	}
+	return func(before, after string) error {
+		return checkPrivateCandidate(before, after, protected)
+	}, nil
+}
+
+func checkPrivateCandidate(before, after string, protected []string) error {
+	if !utf8.ValidString(after) || strings.TrimSpace(after) == "" || len(after) > 4*len(before)+1024 {
+		return errors.New("invalid transformed text")
+	}
+	for _, value := range protected {
+		if strings.Count(before, value) != strings.Count(after, value) {
+			return errors.New("protected value changed or introduced")
+		}
+	}
+	return nil
+}
+
 // ApplyPrivateSurface produces a detached artifact or no artifact at all. It
 // does not activate a benchmark, attest qualification, persist bytes, or change
 // the public rehearsal path. Input must already have received the salted v13
 // assembly pass. Only tool prompts, memory questions, and pair text may change;
 // catalogs, grading rules, graph identities and fixture content remain frozen.
-func ApplyPrivateSurface(ctx context.Context, input DatasetArtifact, transformer PrivateSurfaceTransformer, validator PrivateSurfaceValidator) (DatasetArtifact, error) {
+func ApplyPrivateSurface(ctx context.Context, input DatasetArtifact, transformer PrivateSurfaceTransformer, validator PrivateSurfaceValidator, additionalProtected ...[]string) (DatasetArtifact, error) {
 	fail := func(reason string) (DatasetArtifact, error) {
 		return DatasetArtifact{}, fmt.Errorf("private surface: %s", reason)
 	}
@@ -62,6 +91,9 @@ func ApplyPrivateSurface(ctx context.Context, input DatasetArtifact, transformer
 		return fail("cannot decode base artifact")
 	}
 	protected := v13GlobalProtected(&input)
+	for _, extra := range additionalProtected {
+		protected = append(protected, extra...)
+	}
 	type cached struct{ before, after string }
 	cache := map[string]cached{}
 	changed := false
@@ -92,16 +124,9 @@ func ApplyPrivateSurface(ctx context.Context, input DatasetArtifact, transformer
 			// Provider errors can contain prompts, answers, or credentials.
 			return errors.New("transform failed")
 		}
-		if !utf8.ValidString(after) || strings.TrimSpace(after) == "" || len(after) > 4*len(before)+1024 {
-			return errors.New("invalid transformed text")
-		}
-		for _, value := range protected {
-			// Includes absent values: adding a previously hidden answer to a
-			// question is also forbidden. Conservative substring counts may
-			// reject valid paraphrases; they must never silently approve one.
-			if strings.Count(before, value) != strings.Count(after, value) {
-				return errors.New("protected value changed or introduced")
-			}
+		// Includes absent values: introducing a hidden answer is forbidden.
+		if err := checkPrivateCandidate(before, after, protected); err != nil {
+			return err
 		}
 		if err := validator.Validate(ctx, request, after); err != nil {
 			return errors.New("semantic validation failed")
@@ -114,6 +139,52 @@ func ApplyPrivateSurface(ctx context.Context, input DatasetArtifact, transformer
 		*target = after
 		return nil
 	}
+	if err := visitPrivateSurfaces(&output, transform); err != nil {
+		return fail(err.Error())
+	}
+	if !changed {
+		return fail("unchanged artifact is not a private transformation")
+	}
+	return output, nil
+}
+
+// PrivateSurfaceRequests plans unique provider inputs without running any
+// transformer or approving any output. Repeated graph-local records share one
+// request. The returned strings/slices do not alias mutable input state.
+func PrivateSurfaceRequests(input DatasetArtifact, additionalProtected ...[]string) ([]PrivateSurfaceRequest, error) {
+	if input.BenchVersion != protocol.BenchVersionV13 || input.SurfaceSalt == 0 {
+		return nil, errors.New("private surface: requires a salted v13 artifact")
+	}
+	protected := v13GlobalProtected(&input)
+	for _, extra := range additionalProtected {
+		protected = append(protected, extra...)
+	}
+	seen := map[string]string{}
+	var requests []PrivateSurfaceRequest
+	err := visitPrivateSurfaces(&input, func(location string, text *string) error {
+		if old, ok := seen[location]; ok {
+			if old != *text {
+				return errors.New("private surface: conflicting repeated surface")
+			}
+			return nil
+		}
+		seen[location] = *text
+		request := PrivateSurfaceRequest{Location: location, Text: *text}
+		for _, value := range protected {
+			if strings.Contains(*text, value) {
+				request.Protected = append(request.Protected, value)
+			}
+		}
+		requests = append(requests, request)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return requests, nil
+}
+
+func visitPrivateSurfaces(output *DatasetArtifact, transform func(string, *string) error) error {
 	pair := func(user string, p *protocol.MemoryPair) error {
 		if user == "" {
 			user = PrimaryUser
@@ -129,30 +200,27 @@ func ApplyPrivateSurface(ctx context.Context, input DatasetArtifact, transformer
 	for i := range output.ToolCases {
 		c := &output.ToolCases[i]
 		if err := transform("tool:"+c.ID, &c.Prompt); err != nil {
-			return fail(err.Error())
+			return err
 		}
 		for j := range c.PrerequisitePairs {
 			if err := pair(PrimaryUser, &c.PrerequisitePairs[j]); err != nil {
-				return fail(err.Error())
+				return err
 			}
 		}
 	}
 	for i := range output.MemoryCases {
 		c := &output.MemoryCases[i]
 		if err := transform("case:"+c.ID, &c.Question); err != nil {
-			return fail(err.Error())
+			return err
 		}
 	}
 	for i := range output.MemoryWaves {
 		w := &output.MemoryWaves[i]
 		for j := range w.Pairs {
 			if err := pair(w.UserID, &w.Pairs[j]); err != nil {
-				return fail(err.Error())
+				return err
 			}
 		}
 	}
-	if !changed {
-		return fail("unchanged artifact is not a private transformation")
-	}
-	return output, nil
+	return nil
 }
