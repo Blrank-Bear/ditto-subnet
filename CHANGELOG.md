@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.277.5 (2026-09-18)
+
+### Bug Fixes
+
+- **platform**: Attribute initialization reveals before payouts
+  ([#1975](https://github.com/ditto-assistant/ditto-subnet/pull/1975),
+  [`82f63e6`](https://github.com/ditto-assistant/ditto-subnet/commit/82f63e665481df4403913e71ef0bf32ca6bd46cc))
+
+
 ## v0.277.4 (2026-09-18)
 
 ### Bug Fixes
