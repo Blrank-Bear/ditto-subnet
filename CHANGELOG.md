@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.282.1 (2026-09-19)
+
+### Bug Fixes
+
+- **screener**: Honor conversation operation deadlines
+  ([#2021](https://github.com/ditto-assistant/ditto-subnet/pull/2021),
+  [`8f24878`](https://github.com/ditto-assistant/ditto-subnet/commit/8f248780ca2e70b0ff5123b31ae13f98905f384f))
+
+
 ## v0.282.0 (2026-09-19)
 
 ### Bug Fixes
