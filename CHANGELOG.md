@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.282.0 (2026-09-19)
+
+### Bug Fixes
+
+- **scorer**: Stop charging v13 declarative acknowledgements as memory over-calls
+  ([#1935](https://github.com/ditto-assistant/ditto-subnet/pull/1935),
+  [`4baf33b`](https://github.com/ditto-assistant/ditto-subnet/commit/4baf33b887f209d9f8e6b3b01e0c5bf5af06f343))
+
+### Features
+
+- **platform**: Publish searchable admin activity history
+  ([#2020](https://github.com/ditto-assistant/ditto-subnet/pull/2020),
+  [`709ff9d`](https://github.com/ditto-assistant/ditto-subnet/commit/709ff9dc2ff705337aba0032a36e9b67c8566b0f))
+
+
 ## v0.281.4 (2026-09-19)
 
 ### Bug Fixes
