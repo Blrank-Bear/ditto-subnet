@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.281.4 (2026-09-19)
+
+### Bug Fixes
+
+- **platform**: Allow one more conversation reservation
+  ([#2017](https://github.com/ditto-assistant/ditto-subnet/pull/2017),
+  [`ceead6f`](https://github.com/ditto-assistant/ditto-subnet/commit/ceead6f124a860efcba2dd0100ca8272b766ac46))
+
+
 ## v0.281.3 (2026-09-18)
 
 ### Bug Fixes
