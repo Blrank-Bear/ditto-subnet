@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.282.2 (2026-09-19)
+
+### Bug Fixes
+
+- **platform**: Fold continual history into pinned crown
+  ([#2023](https://github.com/ditto-assistant/ditto-subnet/pull/2023),
+  [`51a3b9c`](https://github.com/ditto-assistant/ditto-subnet/commit/51a3b9c72729c53143744366334a4f6d17bbf965))
+
+
 ## v0.282.1 (2026-09-19)
 
 ### Bug Fixes
