@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.283.0 (2026-09-20)
+
+### Features
+
+- **bench**: Add deterministic enterprise world foundation
+  ([#2029](https://github.com/ditto-assistant/ditto-subnet/pull/2029),
+  [`aa10eb9`](https://github.com/ditto-assistant/ditto-subnet/commit/aa10eb9b84e7af2d2160b4db8378b36b0c67882e))
+
+- **bench**: Compose enterprise queries and document formats
+  ([#2030](https://github.com/ditto-assistant/ditto-subnet/pull/2030),
+  [`13f1e13`](https://github.com/ditto-assistant/ditto-subnet/commit/13f1e13b1336313f1e84ff821e6c6b246d00b5c5))
+
+- **bench**: Launch deterministic V13 enterprise slice
+  ([#2033](https://github.com/ditto-assistant/ditto-subnet/pull/2033),
+  [`171624b`](https://github.com/ditto-assistant/ditto-subnet/commit/171624b9797bcca61a0b29c6ee878d43313ca35e))
+
+- **bench**: Score deterministic enterprise query groups
+  ([#2032](https://github.com/ditto-assistant/ditto-subnet/pull/2032),
+  [`caf3179`](https://github.com/ditto-assistant/ditto-subnet/commit/caf31793deddb9131edc769656880262fd6eb05c))
+
+
 ## v0.282.2 (2026-09-19)
 
 ### Bug Fixes
