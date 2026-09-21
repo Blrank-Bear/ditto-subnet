@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.284.1 (2026-09-21)
+
+### Bug Fixes
+
+- Diagnose stalled rollouts and classify provider error metadata
+  ([#2072](https://github.com/ditto-assistant/ditto-subnet/pull/2072),
+  [`2331df9`](https://github.com/ditto-assistant/ditto-subnet/commit/2331df96546369de4615d601942f05d430fee547))
+
+
 ## v0.284.0 (2026-09-21)
 
 ### Features
