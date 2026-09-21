@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.284.0 (2026-09-21)
+
+### Features
+
+- **platform**: Prune screener capacity events after 30 days
+  ([#2059](https://github.com/ditto-assistant/ditto-subnet/pull/2059),
+  [`34d2f91`](https://github.com/ditto-assistant/ditto-subnet/commit/34d2f910b02f3cd2c9b3539b836c38252895eaeb))
+
+
 ## v0.283.0 (2026-09-20)
 
 ### Features
