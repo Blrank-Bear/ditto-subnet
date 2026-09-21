@@ -16,7 +16,11 @@ Flow for one agent:
    ``docker build`` is residual fallback for ``prefer``/``off`` only.
 4. **Serve smoke.** Reuse the Targon rental ``GET /health`` when that lane
    succeeded. Otherwise run the image detached with a memory + pids cap and
-   poll ``GET /health`` until it returns 2xx.
+   poll ``GET /health`` until it returns 2xx, then prove the harness can ingest
+   with one bounded ``POST /seed`` wave (``SCREENER_SEED_PROBE_MODE``:
+   ``shadow`` records the signal, ``enforce`` makes it a contract failure,
+   ``off`` skips it). The probe is served by the same isolated fake gateway, so
+   it costs no provider call.
 5. **Private policy.** The default v8 manifest performs bounded Luna source
    review after health. A rotating
    private manifest may use timing, random-control, fingerprint, and behavioral
@@ -59,7 +63,7 @@ import tarfile
 import tempfile
 import time
 from collections.abc import Awaitable, Callable, Coroutine, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, BinaryIO, Literal, cast
 from uuid import UUID
@@ -84,6 +88,7 @@ from ditto_screener.platform import (
     RemoteSubmissionBuildRejected,
 )
 from ditto_screener.policy import (
+    _MAX_EVIDENCE,
     ChallengeObservation,
     PolicyContext,
     PolicyEngine,
@@ -133,6 +138,12 @@ _MAX_SCREENED_IMAGE_BYTES = 8 * 1024**3
 _IMAGE_EXPORT_DISK_RESERVE_BYTES = 256 * 1024**2
 _IMAGE_HASH_CHUNK_BYTES = 8 * 1024**2
 _MAX_CANARY_RESPONSE_BYTES = 64 * 1024
+# Sidecar exit codes. The probe script maps each failure shape to its own code
+# so a caller can tell a harness HTTP status from a transport failure without
+# parsing free text.
+_SIDECAR_HTTP_STATUS_EXIT = 22
+_SIDECAR_OVERSIZED_EXIT = 23
+_SIDECAR_TRANSPORT_EXIT = 24
 _CANARY_IMAGE = (
     "python:3.12-alpine@sha256:"
     "6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df"
@@ -149,11 +160,20 @@ _SYSTEM_CA_BUNDLE_CANDIDATES = (
     "/etc/ssl/cert.pem",
 )
 _VALIDATOR_SANDBOX_USER = "65532:65532"
-_VALIDATOR_SANDBOX_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=512m"
+_VALIDATOR_SANDBOX_TMPFS_SIZE = "512m"
+_VALIDATOR_SANDBOX_TMPFS = (
+    f"/tmp:rw,noexec,nosuid,nodev,size={_VALIDATOR_SANDBOX_TMPFS_SIZE}"
+)
 _VALIDATOR_SANDBOX_MEMORY = "3g"
 _VALIDATOR_SANDBOX_CPUS = "2"
 _VALIDATOR_SANDBOX_PIDS = "512"
 _VALIDATOR_SANDBOX_DB = "/tmp/dittobench.db"
+# Known harness persistence variables, locked to the one writable filesystem the
+# runtime contract offers. A harness that honours either variable then persists
+# inside the tmpfs in screening and in scoring alike; an image that writes
+# somewhere else still fails the seeding probe, which is the general case this
+# shim does not try to cover.
+_VALIDATOR_SANDBOX_MEMORY_PATH = "/tmp/dittobench-memory.json"
 _PRIMARY_HARNESS_PROVIDER: Literal["platform"] = "platform"
 _COMPAT_HARNESS_PROVIDER: Literal["chutes"] = "chutes"
 _BROKER_PLACEHOLDER_KEY = "ticket"
@@ -203,12 +223,48 @@ _DOCKER_INFRASTRUCTURE_MARKERS = (
 
 
 @dataclass(frozen=True)
+class _SandboxUsage:
+    """What one smoke container actually consumed of the sandbox envelope."""
+
+    memory_peak_bytes: int | None = None
+    tmpfs_used_bytes: int | None = None
+    tmpfs_capacity_bytes: int | None = None
+
+    @property
+    def known(self) -> bool:
+        return self.memory_peak_bytes is not None or self.tmpfs_used_bytes is not None
+
+    def summary(self, memory_limit: str, tmpfs_limit: str) -> str:
+        parts = []
+        if self.memory_peak_bytes is not None:
+            parts.append(
+                f"memory peak {_mib(self.memory_peak_bytes)} of the {memory_limit} cap"
+            )
+        if self.tmpfs_used_bytes is not None:
+            parts.append(f"/tmp {_mib(self.tmpfs_used_bytes)} of {tmpfs_limit}")
+        return "; ".join(parts)
+
+
+@dataclass(frozen=True)
+class _SeedProbe:
+    """Outcome of the bounded post-health ``POST /seed`` contract probe."""
+
+    passed: bool
+    code: str
+    detail: str
+    usage: _SandboxUsage = _SandboxUsage()
+    """What the container consumed of the envelope while it served the probe."""
+
+
+@dataclass(frozen=True)
 class _StageResult:
     """Internal stable-core stage result."""
 
     passed: bool
     detail: str
     retryable: bool = False
+    code: str | None = None
+    """Stable evidence code when the stage owns one (else the caller's default)."""
 
     def __post_init__(self) -> None:
         if self.passed and self.retryable:
@@ -297,6 +353,8 @@ class _AuditRuntime:
     oracle_answer: str
     gateway_state_file: str
     provider: Literal["platform", "chutes"] = _PRIMARY_HARNESS_PROVIDER
+    seed_probe: _SeedProbe | None = None
+    """Shadow-mode ``/seed`` observation; ``None`` when the probe is off."""
 
 
 # The fake gateway serves a benign `/tool` sink at the same host-container alias
@@ -355,6 +413,7 @@ def _gateway_runtime_env(
         "CURL_CA_BUNDLE": _OPENROUTER_SHIM_CA_BUNDLE_PATH,
         "NODE_EXTRA_CA_CERTS": _OPENROUTER_SHIM_CA_BUNDLE_PATH,
         "DITTOBENCH_DB": _VALIDATOR_SANDBOX_DB,
+        "DITTOBENCH_MEMORY_PATH": _VALIDATOR_SANDBOX_MEMORY_PATH,
     }
 
 
@@ -475,6 +534,99 @@ def _with_image_binding_advisory(
         review_notes=decision.review_notes,
         policy_version=decision.policy_version,
     )
+
+
+def _seed_ack_mismatch(body: str, *, expected_pairs: int) -> str | None:
+    """Return why a seeding acknowledgement is unusable, or ``None`` if it is.
+
+    ``POST /seed`` answers with the counts it loaded (``pairs``, ``subjects``,
+    ``links``). Treating any 2xx as success would pass an image that replies
+    ``204``, ``{}``, or ``{"pairs": 0}`` while persisting nothing -- exactly the
+    class the probe exists to catch.
+    """
+    text = body.strip()
+    if not text:
+        return "the response carried no body"
+    try:
+        parsed = json.loads(text)
+    except ValueError:
+        return "the response body was not JSON"
+    if not isinstance(parsed, dict):
+        return "the response body was not a JSON object"
+    raw = parsed.get("pairs")
+    if raw is None:
+        return "the response omitted the loaded pair count"
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return "the response reported a non-integer pair count"
+    if raw != expected_pairs:
+        return f"it reported {raw} loaded pairs for a wave of {expected_pairs}"
+    return None
+
+
+def _parse_sandbox_usage(output: str) -> _SandboxUsage:
+    """Parse the cgroup sample; mirrors the validator's parseRuntimeMetrics."""
+    section = ""
+    memory_peak: int | None = None
+    tmpfs_used: int | None = None
+    tmpfs_capacity: int | None = None
+    for raw in output.splitlines():
+        line = raw.strip()
+        if line in {"__memory_peak__", "__tmpfs__"}:
+            section = line
+            continue
+        if not line:
+            continue
+        if section == "__memory_peak__":
+            if line.isdigit():
+                memory_peak = int(line)
+        elif section == "__tmpfs__":
+            fields = line.split()
+            if len(fields) < 6:
+                continue
+            capacity, used = fields[-5], fields[-4]
+            if capacity.isdigit() and used.isdigit():
+                tmpfs_capacity = int(capacity) * 1024
+                tmpfs_used = int(used) * 1024
+    return _SandboxUsage(memory_peak, tmpfs_used, tmpfs_capacity)
+
+
+def _mib(value: int) -> str:
+    """Render a byte count in MiB for a bounded, public-safe evidence summary."""
+    return f"{value / (1024 * 1024):.0f} MiB"
+
+
+def _with_seed_probe_evidence(
+    decision: ScreeningDecision, probe: _SeedProbe | None
+) -> ScreeningDecision:
+    """Record the ``/seed`` observation without changing the outcome.
+
+    Two additive records. The failure class is what shadow mode exists for:
+    operators can see how many images would fail the seeding contract, and on
+    which class, before any deployment promotes the probe to ``enforce``. The
+    envelope sample is recorded for passing images too, because the question a
+    cap raises -- whether the fleet's images are anywhere near it -- cannot be
+    answered from rejections alone.
+    """
+    if probe is None:
+        return decision
+    records = []
+    if not probe.passed:
+        records.append(PolicyEvidence("stable-core", probe.code, probe.detail[:240]))
+    summary = probe.usage.summary(
+        _VALIDATOR_SANDBOX_MEMORY, _VALIDATOR_SANDBOX_TMPFS_SIZE
+    )
+    if summary:
+        records.append(
+            PolicyEvidence("stable-core", "seed-envelope-usage", summary[:240])
+        )
+    if not records:
+        return decision
+    # ScreeningDecision rejects more than _MAX_EVIDENCE records, so reserve the
+    # room these take instead of assuming one free slot: a saturated decision
+    # plus a failure class plus an envelope sample would otherwise raise before
+    # the worker could submit any verdict at all.
+    keep = max(0, _MAX_EVIDENCE - len(records))
+    return replace(decision, evidence=(*decision.evidence[:keep], *records))
 
 
 def _gateway_call_count(path: str) -> int:
@@ -1447,12 +1599,19 @@ class BuildGate:
                 )
                 return core_decision(
                     outcome,
-                    code="serve-infrastructure"
-                    if serve_result.retryable
-                    else "health-contract",
+                    code=serve_result.code
+                    or (
+                        "serve-infrastructure"
+                        if serve_result.retryable
+                        else "health-contract"
+                    ),
                     summary="screening runtime infrastructure failed"
                     if serve_result.retryable
-                    else "container did not satisfy the health contract",
+                    else (
+                        "container did not satisfy the seeding contract"
+                        if serve_result.code
+                        else "container did not satisfy the health contract"
+                    ),
                     detail=f"{prefix}: {serve_result.detail}",
                 )
             if audit_runtime is None:
@@ -1592,6 +1751,11 @@ class BuildGate:
                 decision = _with_image_binding_advisory(
                     decision, self._image_binding_advisory(tmp_path)
                 )
+            # Shadow mode observes only: the seeding signal is recorded as
+            # evidence beside the outcome the policy already reached.
+            decision = _with_seed_probe_evidence(
+                decision, active_audit_runtime.seed_probe
+            )
             self._journal.record(context=context, decision=decision)
             if (
                 decision.outcome
@@ -2604,6 +2768,37 @@ class BuildGate:
             return serve_result, None
 
         harness_base = f"http://{_HARNESS_ALIAS}:{self._config.container_port}"
+        # The harness contract does not end at /health: the scored run opens
+        # with a seeding wave. One bounded probe proves the image can ingest,
+        # so an image that cannot persist state fails here with an actionable
+        # reason instead of on every validator's first wave.
+        seed_probe: _SeedProbe | None = None
+        if self._config.seed_probe_mode != "off":
+            seed_probe = await self._probe_seed(
+                harness_base,
+                probe_container=gateway_container,
+                harness_container=container,
+                timeout=min(
+                    self._config.seed_probe_timeout_seconds,
+                    self._config.run_timeout_seconds,
+                ),
+            )
+            usage = await self._sandbox_usage(container)
+            if usage.known:
+                seed_probe = replace(seed_probe, usage=usage)
+            if not seed_probe.passed and self._config.seed_probe_mode == "enforce":
+                return (
+                    _StageResult(
+                        False,
+                        await self._with_container_logs(
+                            self._seed_detail_with_usage(seed_probe),
+                            harness_container=container,
+                            gateway_container=gateway_container,
+                        ),
+                        code=seed_probe.code,
+                    ),
+                    None,
+                )
         # Production v6 intentionally stops here. No synthetic POST /run is
         # issued unless a private policy selector explicitly chooses an audit.
         return (
@@ -2613,6 +2808,7 @@ class BuildGate:
                 gateway_response_token=response_text,
                 oracle_answer=oracle_answer,
                 gateway_state_file=str(Path(gateway_state_dir) / "model-called"),
+                seed_probe=seed_probe,
             ),
         )
 
@@ -2828,6 +3024,162 @@ with socket.create_connection(('127.0.0.1', 443), 2) as raw:
                 return True, ""
             await asyncio.sleep(0.1)
         return False, "fake gateway did not become ready"
+
+    async def _probe_seed(
+        self,
+        harness_base: str,
+        *,
+        probe_container: str,
+        harness_container: str,
+        timeout: float,
+    ) -> _SeedProbe:
+        """Prove the harness can ingest one memory pair, not just answer health.
+
+        Scoring begins at ``POST /seed``: the validator installs the haystack
+        before it asks anything. An image can satisfy ``/health`` without ever
+        writing, then fail every validator's first wave on a read-only path or
+        the sandbox memory cap, so the failure surfaces as a deferred scoring
+        ticket instead of an actionable screening reason.
+
+        The probe is one minimal, idempotent wave carrying a single coined pair.
+        Its identifiers are per-attempt random tokens with no screener-specific
+        marker, so a submission cannot branch on the request, and it is served
+        by the same isolated fake gateway as the rest of the smoke -- no
+        provider call, no provider spend.
+        """
+        token = secrets.token_hex(8)
+        payload: dict[str, object] = {
+            "user_id": token,
+            "wave": 0,
+            "pairs": [
+                {
+                    "pair_id": f"p-{token}",
+                    "session_id": f"s-{token}",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "prompt": f"reference note {token}",
+                    "response": f"acknowledged reference note {token}",
+                }
+            ],
+            "subjects": [],
+            "links": [],
+        }
+        url = f"{harness_base}{self._config.seed_path}"
+        code, out = await self._request_from_sidecar(
+            probe_container, url, payload=payload, timeout=timeout
+        )
+        if code == 0:
+            mismatch = _seed_ack_mismatch(out, expected_pairs=len(payload["pairs"]))  # type: ignore[arg-type]
+            if mismatch is None:
+                return _SeedProbe(True, "seed-ok", "")
+            return _SeedProbe(
+                False,
+                "seed-ack-invalid",
+                f"{self._config.seed_path} answered without acknowledging the "
+                f"wave it was given: {mismatch}. The contract's 2xx is the "
+                f"ingest acknowledgement and carries the loaded counts, so a "
+                f"reply that omits or understates them cannot be distinguished "
+                f"from a harness that stored nothing.",
+            )
+
+        tail = _log_tail(out) or "no detail"
+        lifecycle, oom = await self._container_liveness(harness_container)
+        seed_path = self._config.seed_path
+        if oom:
+            return _SeedProbe(
+                False,
+                "seed-memory-cap",
+                f"the harness exceeded the sandbox memory cap while serving "
+                f"{seed_path} and was terminated. Validators run the same cap; "
+                f"keep the store's working set inside it.",
+            )
+        if lifecycle in {"dead", "exited"}:
+            return _SeedProbe(
+                False,
+                "seed-exit",
+                f"the harness exited while serving {seed_path} ({tail}).",
+            )
+        lowered = out.lower()
+        if "read-only file system" in lowered or "read only file system" in lowered:
+            return _SeedProbe(
+                False,
+                "seed-readonly-write",
+                f"{seed_path} failed writing outside the sandbox's writable "
+                f"filesystem. The root filesystem is read-only and /tmp is the "
+                f"only writable mount; persist state there ({tail}).",
+            )
+        if code == _SIDECAR_HTTP_STATUS_EXIT:
+            return _SeedProbe(
+                False,
+                "seed-http-error",
+                f"{seed_path} did not return 2xx ({tail}).",
+            )
+        if code == _SIDECAR_OVERSIZED_EXIT:
+            return _SeedProbe(
+                False,
+                "seed-oversized-response",
+                f"{seed_path} answered with a body past the probe's safety cap; "
+                f"the contract's reply is the loaded counts.",
+            )
+        return _SeedProbe(
+            False,
+            "seed-unreachable",
+            f"{seed_path} returned no response within {timeout:.0f}s ({tail}).",
+        )
+
+    def _seed_detail_with_usage(self, probe: _SeedProbe) -> str:
+        """The miner-facing reason, with what the container was using."""
+        summary = probe.usage.summary(
+            _VALIDATOR_SANDBOX_MEMORY, _VALIDATOR_SANDBOX_TMPFS_SIZE
+        )
+        if not summary:
+            return probe.detail
+        return f"{probe.detail} Observed at that point: {summary}."
+
+    async def _sandbox_usage(self, container: str) -> _SandboxUsage:
+        """Sample what the smoke container consumed of the sandbox envelope.
+
+        The screener runs the validator's exact resource envelope but has never
+        recorded what a submission actually uses inside it, so the only
+        published signal is the binary one: an image that crossed a cap. The
+        same cgroup files the validator already reads after a scored run
+        (``memory.peak``, ``df /tmp``) answer the operator question the caps
+        raise -- how much headroom a passing image has left -- for every
+        screened image rather than only the failures.
+
+        Best effort by construction: an image without a shell, or a runtime
+        without cgroup v2, simply reports nothing and screening is unchanged.
+        """
+        script = (
+            "printf '%s\n' __memory_peak__\n"
+            "cat /sys/fs/cgroup/memory.peak 2>/dev/null || true\n"
+            "printf '%s\n' __tmpfs__\n"
+            "df -Pk /tmp 2>/dev/null | tail -n 1 || true\n"
+        )
+        code, out = await self._run(
+            ["exec", container, "/bin/sh", "-c", script], timeout=10.0
+        )
+        if code != 0:
+            return _SandboxUsage()
+        return _parse_sandbox_usage(out)
+
+    async def _container_liveness(self, container: str) -> tuple[str, bool]:
+        """Return ``(lifecycle, oom_killed)`` for a smoke container."""
+        code, out = await self._run(
+            [
+                "container",
+                "inspect",
+                "--format",
+                "{{.State.Status}} {{.State.OOMKilled}}",
+                container,
+            ],
+            timeout=5.0,
+        )
+        if code != 0:
+            return "", False
+        parts = out.strip().lower().split()
+        if not parts:
+            return "", False
+        return parts[0], len(parts) > 1 and parts[1] == "true"
 
     async def _wait_healthy(
         self,
@@ -3154,14 +3506,14 @@ except (urllib.error.URLError, OSError, TimeoutError):
     # detail. The caller only needs to distinguish no response from a harness
     # HTTP status, and the public result must not expose challenge data.
     sys.stdout.write("transport request failed")
-    raise SystemExit(24)
+    raise SystemExit({_SIDECAR_TRANSPORT_EXIT})
 output = response.read({_MAX_CANARY_RESPONSE_BYTES + 1})
 if len(output) > {_MAX_CANARY_RESPONSE_BYTES}:
     sys.stdout.write("response exceeded safety cap")
-    raise SystemExit(23)
+    raise SystemExit({_SIDECAR_OVERSIZED_EXIT})
 if not 200 <= response.status < 300:
     sys.stdout.buffer.write(f"HTTP {{response.status}}: ".encode() + output)
-    raise SystemExit(22)
+    raise SystemExit({_SIDECAR_HTTP_STATUS_EXIT})
 sys.stdout.buffer.write(output)
 """
         return await self._run(

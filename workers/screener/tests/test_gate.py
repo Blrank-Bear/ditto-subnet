@@ -2353,3 +2353,345 @@ def test_with_tool_endpoint_fills_only_tool_declaring_requests() -> None:
     original = {"case_id": "c", "tools": [{"name": "x"}]}
     _with_tool_endpoint(original)
     assert "tool_endpoint" not in original
+
+
+_USAGE_SAMPLE = (
+    "__memory_peak__\n412000000\n__tmpfs__\ntmpfs 524288 12345 511943 3% /tmp\n"
+)
+
+
+def _usage_run(
+    calls: list[list[str]], *, sample: str = _USAGE_SAMPLE, exit_code: int = 0
+) -> Callable[..., Any]:
+    """`_ok_run` that answers the cgroup sample the usage probe reads."""
+    ok = _ok_run(calls)
+
+    async def run(
+        args: list[str], *, stdin: Any = None, **kwargs: Any
+    ) -> tuple[int, str]:
+        if args[0] == "exec" and "/bin/sh" in args:
+            return exit_code, sample
+        return await ok(args, stdin=stdin, **kwargs)
+
+    return run
+
+
+def _seed_ack_run(calls: list[list[str]], *, body: str) -> Callable[..., Any]:
+    """`_ok_run` whose harness answers `/seed` with `body` and HTTP 2xx."""
+    ok = _ok_run(calls)
+
+    async def run(
+        args: list[str], *, stdin: Any = None, **kwargs: Any
+    ) -> tuple[int, str]:
+        if args[0] == "exec" and any("/seed" in arg for arg in args):
+            return 0, body
+        return await ok(args, stdin=stdin, **kwargs)
+
+    return run
+
+
+def _seed_probe_run(
+    calls: list[list[str]],
+    *,
+    exit_code: int,
+    output: str,
+    oom: bool = False,
+    status: str = "running",
+) -> Callable[..., Any]:
+    """`_ok_run` whose sidecar `/seed` request fails the way a real one would."""
+    ok = _ok_run(calls)
+
+    async def run(
+        args: list[str], *, stdin: Any = None, **kwargs: Any
+    ) -> tuple[int, str]:
+        if args[0] == "exec" and any("/seed" in arg for arg in args):
+            return exit_code, output
+        if args[:3] == ["container", "inspect", "--format"]:
+            return 0, f"{status} {'true' if oom else 'false'}\n"
+        return await ok(args, stdin=stdin, **kwargs)
+
+    return run
+
+
+async def test_seed_probe_runs_after_health_and_costs_no_provider_call(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(make_config(), _ok_run(calls), tarball=tarball)
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.PASS
+    seed_calls = [call for call in calls if any("/seed" in arg for arg in call)]
+    assert len(seed_calls) == 1
+    assert seed_calls[0][0] == "exec"
+    assert "http://harness:8080/seed" in seed_calls[0]
+    # The probe is a POST carrying one pair, and it never leaves the isolated
+    # network: it is issued from the gateway sidecar, like every other probe.
+    assert "POST" in seed_calls[0]
+
+
+async def test_seed_probe_off_issues_no_request(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(
+        make_config(seed_probe_mode="off"), _ok_run(calls), tarball=tarball
+    )
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.PASS
+    assert not any("/seed" in arg for call in calls for arg in call)
+
+
+async def test_seed_probe_shadow_records_failure_without_changing_outcome(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(
+        make_config(),
+        _seed_probe_run(
+            calls,
+            exit_code=22,
+            output='HTTP 500: {"error":"Read-only file system (os error 30)"}',
+        ),
+        tarball=tarball,
+    )
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.PASS
+    codes = [item.code for item in result.evidence]
+    assert "seed-readonly-write" in codes
+    summary = next(
+        item.summary for item in result.evidence if item.code == "seed-readonly-write"
+    )
+    assert "/tmp" in summary
+
+
+async def test_seed_probe_enforce_rejects_with_an_actionable_reason(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(
+        make_config(seed_probe_mode="enforce"),
+        _seed_probe_run(
+            calls,
+            exit_code=22,
+            output='HTTP 500: {"error":"Read-only file system (os error 30)"}',
+        ),
+        tarball=tarball,
+    )
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.DETERMINISTIC_REJECT
+    assert "/tmp" in result.detail
+    assert any(item.code == "seed-readonly-write" for item in result.evidence)
+
+
+async def test_seed_probe_reports_the_memory_cap_when_the_container_is_oom_killed(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(
+        make_config(seed_probe_mode="enforce"),
+        _seed_probe_run(
+            calls,
+            exit_code=24,
+            output="transport request failed",
+            oom=True,
+            status="exited",
+        ),
+        tarball=tarball,
+    )
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.DETERMINISTIC_REJECT
+    assert "memory cap" in result.detail
+    assert any(item.code == "seed-memory-cap" for item in result.evidence)
+
+
+async def test_seed_probe_reports_a_harness_exit_before_any_response(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(
+        make_config(seed_probe_mode="enforce"),
+        _seed_probe_run(
+            calls,
+            exit_code=24,
+            output="transport request failed",
+            status="dead",
+        ),
+        tarball=tarball,
+    )
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.DETERMINISTIC_REJECT
+    assert any(item.code == "seed-exit" for item in result.evidence)
+
+
+async def test_envelope_usage_is_recorded_for_a_passing_image(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(make_config(), _usage_run(calls), tarball=tarball)
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.PASS
+    usage = next(i for i in result.evidence if i.code == "seed-envelope-usage")
+    # A passing image is exactly the case rejections cannot answer: how much of
+    # the envelope the fleet actually uses.
+    assert "393 MiB" in usage.summary
+    assert "3g" in usage.summary
+    assert "12 MiB" in usage.summary
+
+
+async def test_envelope_usage_is_skipped_when_the_image_has_no_shell(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(
+        make_config(),
+        _usage_run(calls, sample="exec failed: no /bin/sh", exit_code=126),
+        tarball=tarball,
+    )
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.PASS
+    assert not any(i.code == "seed-envelope-usage" for i in result.evidence)
+
+
+def test_sandbox_usage_parses_the_cgroup_sample() -> None:
+    usage = gate_module._parse_sandbox_usage(_USAGE_SAMPLE)
+
+    assert usage.memory_peak_bytes == 412000000
+    assert usage.tmpfs_used_bytes == 12345 * 1024
+    assert usage.tmpfs_capacity_bytes == 524288 * 1024
+    assert usage.known
+
+
+def test_sandbox_usage_is_unknown_on_an_unreadable_sample() -> None:
+    usage = gate_module._parse_sandbox_usage("cat: can't open: No such file")
+
+    assert not usage.known
+    assert usage.summary("3g", "512m") == ""
+
+
+@pytest.mark.parametrize(
+    "body,reason",
+    [
+        ("", "no body"),
+        ("not json", "not JSON"),
+        ("[]", "not a JSON object"),
+        ('{"subjects": 0, "links": 0}', "omitted"),
+        ('{"pairs": "1"}', "non-integer"),
+        ('{"pairs": 0, "subjects": 0, "links": 0}', "0 loaded pairs"),
+    ],
+)
+async def test_seed_probe_rejects_an_acknowledgement_that_loaded_nothing(
+    make_config: Callable[..., ScreenerConfig], body: str, reason: str
+) -> None:
+    # A 2xx alone proves the route exists, not that the wave was ingested.
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(
+        make_config(seed_probe_mode="enforce"),
+        _seed_ack_run(calls, body=body),
+        tarball=tarball,
+    )
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.DETERMINISTIC_REJECT
+    assert any(item.code == "seed-ack-invalid" for item in result.evidence)
+    assert reason in result.detail
+
+
+async def test_seed_probe_accepts_the_contract_acknowledgement(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(
+        make_config(seed_probe_mode="enforce"),
+        _seed_ack_run(calls, body='{"pairs": 1, "subjects": 0, "links": 0}'),
+        tarball=tarball,
+    )
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.PASS
+    assert not any(i.code == "seed-ack-invalid" for i in result.evidence)
+
+
+def test_seed_evidence_never_exceeds_the_decision_bound() -> None:
+    # A saturated decision plus a failure class plus an envelope sample would
+    # otherwise build 17 records and raise before any verdict is submitted.
+    saturated = ScreeningDecision(
+        outcome=ScreeningOutcome.PASS,
+        detail="",
+        manifest_digest=CORE_ONLY_MANIFEST.digest,
+        evidence=tuple(
+            PolicyEvidence("stable-core", f"filler-{index}", "x") for index in range(16)
+        ),
+    )
+    probe = gate_module._SeedProbe(
+        False,
+        "seed-memory-cap",
+        "the harness exceeded the sandbox memory cap",
+        usage=gate_module._SandboxUsage(412_000_000, 12_345, 536_870_912),
+    )
+
+    result = gate_module._with_seed_probe_evidence(saturated, probe)
+
+    assert len(result.evidence) == 16
+    codes = [item.code for item in result.evidence]
+    assert codes[-2:] == ["seed-memory-cap", "seed-envelope-usage"]
+
+
+def test_screening_locks_the_same_persistence_paths_as_scoring() -> None:
+    # The scorer pins DITTOBENCH_DB and DITTOBENCH_MEMORY_PATH into the miner
+    # sandbox. Screening runs the same envelope, so a harness honouring either
+    # variable has to land in the same tmpfs here, or an image can pass one
+    # runtime and fail the other for a reason neither reports.
+    env = _gateway_runtime_env(
+        provider="platform",
+        chat_gateway="http://gateway:11435",
+        embed_gateway="http://gateway:11434",
+    )
+
+    assert env["DITTOBENCH_DB"] == "/tmp/dittobench.db"
+    assert env["DITTOBENCH_MEMORY_PATH"] == "/tmp/dittobench-memory.json"
+
+
+async def test_the_locked_persistence_paths_reach_the_smoke_container(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+    calls: list[list[str]] = []
+    gate = _gate_with(make_config(), _ok_run(calls), tarball=tarball)
+    async with gate._client:
+        await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    run_call = next(
+        call
+        for call in calls
+        if call[0] == "run" and any(a.startswith("DITTOBENCH_DB=") for a in call)
+    )
+    assert "DITTOBENCH_MEMORY_PATH=/tmp/dittobench-memory.json" in run_call
+    assert "DITTOBENCH_DB=/tmp/dittobench.db" in run_call
