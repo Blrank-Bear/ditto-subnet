@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.285.0 (2026-09-21)
+
+### Features
+
+- **screener**: Probe /seed after the health gate
+  ([#2040](https://github.com/ditto-assistant/ditto-subnet/pull/2040),
+  [`cf7db75`](https://github.com/ditto-assistant/ditto-subnet/commit/cf7db7589a52f5e27ad41aab5bb7d13f1410dc0a))
+
+
 ## v0.284.2 (2026-09-21)
 
 ### Bug Fixes
