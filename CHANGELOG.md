@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.284.2 (2026-09-21)
+
+### Bug Fixes
+
+- **backroom**: Retain bounded validator run progress
+  ([#2078](https://github.com/ditto-assistant/ditto-subnet/pull/2078),
+  [`676231a`](https://github.com/ditto-assistant/ditto-subnet/commit/676231a45a38cbe969f5ff4ce1058d69c31989ef))
+
+
 ## v0.284.1 (2026-09-21)
 
 ### Bug Fixes
