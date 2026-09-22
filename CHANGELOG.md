@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.285.2 (2026-09-22)
+
+### Bug Fixes
+
+- **platform**: Distinguish interrupted screening from historical work
+  ([#2092](https://github.com/ditto-assistant/ditto-subnet/pull/2092),
+  [`392b714`](https://github.com/ditto-assistant/ditto-subnet/commit/392b714101030b64beef14845d02d9027271e7fc))
+
+
 ## v0.285.1 (2026-09-22)
 
 ### Bug Fixes
