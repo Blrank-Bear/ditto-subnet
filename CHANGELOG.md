@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.285.3 (2026-09-22)
+
+### Bug Fixes
+
+- **screener**: Expose sanitized adjudicator failure diagnostics
+  ([#2095](https://github.com/ditto-assistant/ditto-subnet/pull/2095),
+  [`39456b5`](https://github.com/ditto-assistant/ditto-subnet/commit/39456b52d5d6aef4fd1f6fcaa7918919d7314322))
+
+
 ## v0.285.2 (2026-09-22)
 
 ### Bug Fixes
