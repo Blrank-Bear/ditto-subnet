@@ -892,6 +892,7 @@ async def test_local_build_failure_forwards_signed_private_miner_feedback(
     assert verdict["private_failure_log_tail"] is not None
     assert "secret-value" not in verdict["private_failure_detail"]
     assert "[REDACTED]" in verdict["private_failure_log_tail"]
+    _signed_request(verdict)
 
 
 async def test_seed_probe_rejection_forwards_private_miner_feedback(
@@ -921,6 +922,100 @@ async def test_seed_probe_rejection_forwards_private_miner_feedback(
     assert verdict["private_failure_detail"] is not None
     assert "/seed" in verdict["private_failure_detail"]
     assert "secret-value" not in verdict["private_failure_detail"]
+    _signed_request(verdict)
+
+
+def _shadow_seed_evidence(decision: ScreeningDecision) -> ScreeningDecision:
+    """Append the records shadow mode adds without changing the outcome."""
+    return replace(
+        decision,
+        evidence=(
+            *decision.evidence,
+            PolicyEvidence(
+                "stable-core",
+                "seed-readonly-write",
+                "shadow seed probe observed a read-only filesystem write",
+            ),
+            PolicyEvidence(
+                "stable-core",
+                "seed-envelope-usage",
+                "memory peak 120 MiB of 3072 MiB",
+            ),
+        ),
+    )
+
+
+def _signed_request(verdict: dict[str, Any]) -> ScreenResultRequest:
+    return ScreenResultRequest(
+        screener_hotkey=_MINER,
+        **{key: value for key, value in verdict.items() if key != "agent_id"},
+    )
+
+
+async def test_shadow_seed_observation_keeps_quarantine_verdict_signed(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    # Shadow /seed evidence is appended after the deciding code. Signing it as
+    # private failure feedback makes ScreenResultRequest reject a quarantine
+    # with "private failure feedback requires a failure outcome", and the
+    # worker then parks the attempt as worker-result-processing-failed.
+    platform = _FakePlatform([])
+    gate = _FakeGate(
+        _shadow_seed_evidence(
+            core_decision(
+                ScreeningOutcome.QUARANTINE,
+                code="benchmark-emulation",
+                summary="source review held the submission for operator review",
+                detail="private policy quarantine pending operator review",
+            )
+        )
+    )
+    worker = _worker(make_config(), platform, gate)
+
+    await worker._screen_one(_item(uuid4()), policy_version=SCREENING_POLICY_VERSION)
+
+    assert len(platform.verdicts) == 1
+    verdict = platform.verdicts[0]
+    request = _signed_request(verdict)
+    assert request.outcome == ScreenResultOutcome.QUARANTINE
+    assert request.passed is False
+    assert request.reason_code == "benchmark-emulation"
+    assert request.private_failure_detail is None
+    assert request.private_failure_log_tail is None
+    assert [item.code for item in request.evidence or []] == [
+        "benchmark-emulation",
+        "seed-readonly-write",
+        "seed-envelope-usage",
+    ]
+
+
+async def test_shadow_seed_observation_keeps_pass_verdict_signed(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    platform = _FakePlatform([])
+    gate = _FakeGate(
+        _shadow_seed_evidence(
+            core_decision(
+                ScreeningOutcome.PASS,
+                code="health-ok",
+                summary="container satisfied the health gate",
+                detail="",
+            )
+        )
+    )
+    worker = _worker(make_config(), platform, gate)
+
+    await worker._screen_one(_item(uuid4()), policy_version=SCREENING_POLICY_VERSION)
+
+    assert len(platform.verdicts) == 1
+    verdict = platform.verdicts[0]
+    request = _signed_request(verdict)
+    assert request.outcome == ScreenResultOutcome.PASS
+    assert request.passed is True
+    assert request.reason_code == "health-ok"
+    assert request.private_failure_detail is None
+    assert request.private_failure_log_tail is None
+    assert request.evidence is None
 
 
 async def test_exact_cross_miner_duplicate_skips_artifact_and_private_gate(
