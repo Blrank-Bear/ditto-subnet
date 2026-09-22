@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.285.5 (2026-09-22)
+
+### Bug Fixes
+
+- **inference**: Restore aggregate provider fallbacks
+  ([#2104](https://github.com/ditto-assistant/ditto-subnet/pull/2104),
+  [`0224576`](https://github.com/ditto-assistant/ditto-subnet/commit/022457647167e18566d7b6ba43858078e27bec9e))
+
+
 ## v0.285.4 (2026-09-22)
 
 ### Bug Fixes
