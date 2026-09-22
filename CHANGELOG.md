@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.285.4 (2026-09-22)
+
+### Bug Fixes
+
+- **relay**: Isolate embedding backpressure from chat circuit
+  ([#2101](https://github.com/ditto-assistant/ditto-subnet/pull/2101),
+  [`bfb36bb`](https://github.com/ditto-assistant/ditto-subnet/commit/bfb36bb3b453bc4347e38cd8a551fb0755cb3322))
+
+
 ## v0.285.3 (2026-09-22)
 
 ### Bug Fixes
