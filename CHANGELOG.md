@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.285.1 (2026-09-22)
+
+### Bug Fixes
+
+- **screener**: Keep shadow seed notes off failure feedback
+  ([#2086](https://github.com/ditto-assistant/ditto-subnet/pull/2086),
+  [`0391d9c`](https://github.com/ditto-assistant/ditto-subnet/commit/0391d9c279817f9372dd7d5eff671703e0a1a653))
+
+
 ## v0.285.0 (2026-09-21)
 
 ### Features
