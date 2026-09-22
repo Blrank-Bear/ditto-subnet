@@ -2154,10 +2154,13 @@ export interface paths {
         };
         /**
          * Get Screening Failure Diagnostic
-         * @description Return the sanitized private failure for one exact attempt.
+         * @description Return the sanitized private failure and court trace for one attempt.
          *
          *     The public submission history deliberately omits these fields. Backroom
          *     exposes this route only through its separately scoped artifact-read tool.
+         *     ``court_diagnostic`` is structured court metadata. It is null for attempts
+         *     screened before the trace existed and for failures that were not an
+         *     automated-court run. Reading it does not clear, reject, or rescreen.
          */
         get: operations["get_screening_failure_diagnostic_api_v1_admin_screening_submissions__agent_id__attempts__attempt_id__failure_diagnostic_get"];
         put?: never;
@@ -6719,6 +6722,35 @@ export interface components {
          * @enum {string}
          */
         AdjudicationClearClause: "retrieval_ranking_not_family_engine" | "content_complete_memoization_cache" | "standard_broker_inference_client" | "unreported_tool_calls_executed" | "local_practice_harness_stub" | "intent_routing_or_precursor_pass" | "bench_version_branching_alone" | "single_success_duplicate_suppression" | "plain_answer_normalization" | "prior_pattern_removed" | "model_authors_graded_slot" | "no_proven_breach_before_deadline";
+        /**
+         * AdjudicationRunDiagnostic
+         * @description Sanitized trace of one automated-court run that did not finish.
+         *
+         *     Operators need the failure class, stage, and provider status. The trace
+         *     never carries source, prompts, credentials, exception text, or model text.
+         */
+        AdjudicationRunDiagnostic: {
+            /** Completion Tokens */
+            completion_tokens?: number | null;
+            /** Elapsed Ms */
+            elapsed_ms: number;
+            /** Error Class */
+            error_class?: string | null;
+            /** Escalation Code */
+            escalation_code?: string | null;
+            /** Final Tool Call Returned */
+            final_tool_call_returned?: boolean | null;
+            /** Http Status */
+            http_status?: number | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Tokens */
+            prompt_tokens?: number | null;
+            /** Provider */
+            provider?: string | null;
+            /** Timeout Stage */
+            timeout_stage?: ("completion" | "lease" | "step-budget" | "unavailable" | "response") | null;
+        };
         /** AdminActiveContractRequest */
         AdminActiveContractRequest: {
             /**
@@ -9985,6 +10017,7 @@ export interface components {
              * @enum {string}
              */
             attempt_status: "running" | "passed" | "rejected" | "failed" | "expired" | "quarantined";
+            court_diagnostic?: components["schemas"]["AdjudicationRunDiagnostic"] | null;
             /**
              * Deadline
              * Format: date-time
@@ -27243,6 +27276,7 @@ export interface components {
             /** Reason */
             reason: string;
             reject_invariant?: components["schemas"]["SourceReviewInvariant"] | null;
+            run_diagnostic?: components["schemas"]["AdjudicationRunDiagnostic"] | null;
         };
         /**
          * SourceReviewAuthorityTransition

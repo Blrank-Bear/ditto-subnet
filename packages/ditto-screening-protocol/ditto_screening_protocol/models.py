@@ -1204,6 +1204,37 @@ class SourceReviewCitation(BaseModel):
     line: Annotated[int, Field(ge=1, le=10_000_000)]
 
 
+class AdjudicationRunDiagnostic(BaseModel):
+    """Sanitized trace of one automated-court run that did not finish.
+
+    Operators need the failure class, stage, and provider status. The trace
+    never carries source, prompts, credentials, exception text, or model text.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    error_class: (
+        Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9]{0,63}$")] | None
+    ) = None
+    escalation_code: (
+        Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")] | None
+    ) = None
+    timeout_stage: (
+        Literal["completion", "lease", "step-budget", "unavailable", "response"] | None
+    ) = None
+    http_status: Annotated[int, Field(ge=100, le=599)] | None = None
+    elapsed_ms: Annotated[int, Field(ge=0, le=3_600_000)]
+    prompt_tokens: Annotated[int, Field(ge=0, le=10_000_000)] | None = None
+    completion_tokens: Annotated[int, Field(ge=0, le=10_000_000)] | None = None
+    final_tool_call_returned: bool | None = None
+    model: (
+        Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$")] | None
+    ) = None
+    provider: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$")] | None = (
+        None
+    )
+
+
 class SourceReviewAdjudication(BaseModel):
     """Terminal clear/reject decision on a review that would otherwise hold.
 
@@ -1237,6 +1268,10 @@ class SourceReviewAdjudication(BaseModel):
     escalation_code: (
         Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")] | None
     ) = None
+    run_diagnostic: AdjudicationRunDiagnostic | None = None
+    """Operator metadata for an escalation. Excluded from ``canonical_digest``
+    so a platform that has not yet learned the field still verifies the signed
+    verdict."""
 
     @model_validator(mode="after")
     def validate_decision_basis(self) -> SourceReviewAdjudication:
@@ -1265,12 +1300,19 @@ class SourceReviewAdjudication(BaseModel):
                 raise ValueError("a clear requires at least one cited location")
         elif self.escalation_code is None:
             raise ValueError("an escalation must name why the decision was refused")
+        if self.run_diagnostic is not None and self.decision != "escalate":
+            raise ValueError("adjudication run diagnostic requires an escalation")
         return self
 
     def canonical_digest(self) -> str:
-        """Bind the complete court result into the signed worker verdict."""
+        """Bind the court decision into the signed worker verdict.
+
+        ``run_diagnostic`` is operator metadata. Leaving it out keeps the
+        digest stable for verdicts signed before the field existed and for
+        platforms that ignore unknown adjudication fields during a rollout.
+        """
         payload = json.dumps(
-            self.model_dump(mode="json"),
+            self.model_dump(mode="json", exclude={"run_diagnostic"}),
             sort_keys=True,
             separators=(",", ":"),
         ).encode()
@@ -1300,9 +1342,9 @@ class SourceReviewObservationPayload(BaseModel):
     review_audit: ScreenReviewAudit | None = None
     notes: Annotated[list[SourceReviewNote], Field(default_factory=list, max_length=48)]
     adjudication: SourceReviewAdjudication | None = None
-    """Automated clear/reject on a review that would otherwise hold. Absent
-    when the adjudicator is off, when the review needed no adjudication, or
-    when the adjudicator itself failed."""
+    """Automated clear, reject, or escalation. An escalation may carry a
+    sanitized ``run_diagnostic``; that trace is not part of the signed digest.
+    Absent when the adjudicator is off or the review needed no adjudication."""
 
     @model_validator(mode="after")
     def validate_finding_binding(self) -> SourceReviewObservationPayload:

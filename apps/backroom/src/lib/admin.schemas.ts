@@ -4309,6 +4309,33 @@ export const screeningAttemptSchema = z.object({
   duplicate_version: z.number().int().positive().nullish().default(null),
 })
 
+export const adjudicationRunDiagnosticSchema = z.object({
+  error_class: z
+    .string()
+    .regex(/^[A-Za-z][A-Za-z0-9]{0,63}$/)
+    .nullish(),
+  escalation_code: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
+    .nullish(),
+  timeout_stage: z
+    .enum(['completion', 'lease', 'step-budget', 'unavailable', 'response'])
+    .nullish(),
+  http_status: z.number().int().min(100).max(599).nullish(),
+  elapsed_ms: z.number().int().min(0).max(3_600_000),
+  prompt_tokens: z.number().int().min(0).max(10_000_000).nullish(),
+  completion_tokens: z.number().int().min(0).max(10_000_000).nullish(),
+  final_tool_call_returned: z.boolean().nullish(),
+  model: z
+    .string()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$/)
+    .nullish(),
+  provider: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9._-]{0,63}$/)
+    .nullish(),
+})
+
 export const screeningFailureDiagnosticSchema = z.object({
   agent_id: z.string().uuid(),
   artifact_sha256: z.string().regex(/^[0-9a-f]{64}$/),
@@ -4330,6 +4357,10 @@ export const screeningFailureDiagnosticSchema = z.object({
   reason_code: z.string().nullable(),
   private_failure_detail: z.string().max(4_000).nullable(),
   private_failure_log_tail: z.string().max(16_000).nullable(),
+  // Null for attempts screened before the court trace existed, and for
+  // failures that were not an automated-court run. Older Platform responses
+  // omit the key; treat that the same as an absent trace.
+  court_diagnostic: adjudicationRunDiagnosticSchema.nullish().default(null),
 })
 
 export const screeningImageBuildSchema = z.object({

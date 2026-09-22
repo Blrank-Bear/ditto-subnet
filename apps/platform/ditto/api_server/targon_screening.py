@@ -824,6 +824,11 @@ async def _quarantine(
                 if observation is not None and observation.finding is not None
                 else None
             ),
+            court_diagnostic=(
+                adjudication.run_diagnostic.model_dump(mode="json")
+                if adjudication is not None and adjudication.run_diagnostic is not None
+                else None
+            ),
             status="active",
         )
     )

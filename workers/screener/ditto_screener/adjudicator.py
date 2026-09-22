@@ -33,14 +33,18 @@ visible in Backroom and resolvable in one call; a silent admission is not.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import copy
 import json
 import logging
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import httpx
+from pydantic import ValidationError
 
 from ditto_screener.decision_path_prompt import DECISION_PATH_GUIDANCE
 from ditto_screener.evidence_quality import citation_admissibility
@@ -54,6 +58,7 @@ from ditto_screening_protocol import (
     SCREENING_FLOOR_POLICY_VERSION,
     SCREENING_POLICY_VERSION,
     AdjudicationClearClause,
+    AdjudicationRunDiagnostic,
     SourceReviewAdjudication,
     SourceReviewCitation,
     SourceReviewInvariant,
@@ -61,6 +66,28 @@ from ditto_screening_protocol import (
 from ditto_screening_protocol.models import source_review_invariants_for_policy
 
 logger = logging.getLogger(__name__)
+
+_ERROR_CLASS_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,63}$")
+_PROVIDER_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+_MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$")
+_RunStage = Literal["completion", "lease", "step-budget", "unavailable", "response"]
+
+
+@dataclass
+class _RunTrace:
+    """Mutable, secret-free facts collected during one court attempt."""
+
+    started: float
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    final_tool_call_returned: bool | None = None
+    http_status: int | None = None
+
+
+_run_trace: contextvars.ContextVar[_RunTrace | None] = contextvars.ContextVar(
+    "adjudicator_run_trace",
+    default=None,
+)
 
 _SUPPORTED_POLICY_VERSIONS = tuple(
     range(SCREENING_FLOOR_POLICY_VERSION, SCREENING_POLICY_VERSION + 1)
@@ -487,6 +514,77 @@ class _Verdict:
     citations: tuple[tuple[str, int], ...]
 
 
+def _token_count(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    if 0 <= value <= 10_000_000:
+        return value
+    return None
+
+
+def _http_status(error: BaseException) -> int | None:
+    if not isinstance(error, httpx.HTTPStatusError):
+        return None
+    code = error.response.status_code
+    if isinstance(code, bool) or not isinstance(code, int):
+        return None
+    if 100 <= code <= 599:
+        return code
+    return None
+
+
+def _failure_stage(error: BaseException) -> _RunStage:
+    if isinstance(error, (TimeoutError, httpx.TimeoutException)):
+        return "completion"
+    if isinstance(error, httpx.HTTPStatusError):
+        return "response"
+    if isinstance(error, (httpx.HTTPError, OSError)):
+        return "unavailable"
+    if isinstance(error, json.JSONDecodeError):
+        return "response"
+    if isinstance(error, ValueError):
+        message = str(error)
+        if "lease budget" in message:
+            return "lease"
+        if "step budget" in message:
+            return "step-budget"
+    return "response"
+
+
+def _observe_completion(payload: object) -> None:
+    """Record token counts and whether a final tool call was present.
+
+    Metadata only. Model text, tool arguments, and prompts are not stored.
+    """
+    trace = _run_trace.get()
+    if trace is None or not isinstance(payload, dict):
+        return
+    usage = payload.get("usage")
+    if isinstance(usage, dict):
+        prompt_tokens = _token_count(usage.get("prompt_tokens"))
+        completion_tokens = _token_count(usage.get("completion_tokens"))
+        if prompt_tokens is not None:
+            trace.prompt_tokens = prompt_tokens
+        if completion_tokens is not None:
+            trace.completion_tokens = completion_tokens
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        return
+    calls = message.get("tool_calls")
+    if not isinstance(calls, list) or not calls:
+        trace.final_tool_call_returned = False
+        return
+    trace.final_tool_call_returned = any(
+        isinstance(call, dict)
+        and isinstance(call.get("function"), dict)
+        and call["function"].get("name") == "submit_adjudication"
+        for call in calls
+    )
+
+
 def _escalate(
     code: str,
     reason: str,
@@ -724,46 +822,118 @@ class SourceReviewAdjudicator:
                     notes=note_count,
                     policy_version=policy_version,
                 )
+        trace = _RunTrace(started=asyncio.get_running_loop().time())
+        token = _run_trace.set(trace)
         try:
-            verdict, read_locations = await self._run(
-                repository,
-                api_key,
-                notes=notes,
-                finding=finding,
-                error_code=error_code,
-                deadline=deadline,
-                policy_version=policy_version,
-                decision_only=decision_only,
-                preloaded_evidence=preloaded_evidence,
-                preloaded_reads=preloaded_reads,
-            )
-        except (
-            OSError,
-            TimeoutError,
-            ValueError,
-            httpx.HTTPError,
-            json.JSONDecodeError,
-        ) as error:
-            logger.warning(
-                "adjudication failed model=%s cause=%s: %s",
-                self._model,
-                type(error).__name__,
-                error,
-            )
-            return _escalate(
-                "adjudicator-failed",
-                "Automated adjudication did not complete; held for operator review",
-                model=self._model,
+            try:
+                verdict, read_locations = await self._run(
+                    repository,
+                    api_key,
+                    notes=notes,
+                    finding=finding,
+                    error_code=error_code,
+                    deadline=deadline,
+                    policy_version=policy_version,
+                    decision_only=decision_only,
+                    preloaded_evidence=preloaded_evidence,
+                    preloaded_reads=preloaded_reads,
+                )
+            except (
+                OSError,
+                TimeoutError,
+                ValueError,
+                httpx.HTTPError,
+                json.JSONDecodeError,
+            ) as error:
+                # Class and stage only. Exception text can echo a prompt or
+                # provider body, so it stays out of the persisted diagnostic.
+                logger.warning(
+                    "adjudication failed model=%s cause=%s stage=%s",
+                    self._model,
+                    type(error).__name__,
+                    _failure_stage(error),
+                )
+                result = _escalate(
+                    "adjudicator-failed",
+                    "Automated adjudication did not complete; held for operator review",
+                    model=self._model,
+                    notes=note_count,
+                    policy_version=policy_version,
+                )
+                return self._with_diagnostic(
+                    result,
+                    self._failure_diagnostic(
+                        trace,
+                        error,
+                        escalation_code="adjudicator-failed",
+                    ),
+                )
+            return self._certify(
+                verdict,
+                repository=repository,
+                read_locations=read_locations,
                 notes=note_count,
                 policy_version=policy_version,
             )
-        return self._certify(
-            verdict,
-            repository=repository,
-            read_locations=read_locations,
-            notes=note_count,
-            policy_version=policy_version,
+        finally:
+            _run_trace.reset(token)
+
+    def _with_diagnostic(
+        self,
+        result: SourceReviewAdjudication,
+        diagnostic: AdjudicationRunDiagnostic | None,
+    ) -> SourceReviewAdjudication:
+        if diagnostic is None:
+            return result
+        try:
+            return result.model_copy(update={"run_diagnostic": diagnostic})
+        except ValidationError:
+            logger.warning(
+                "adjudication diagnostic was not attachable model=%s",
+                self._model,
+            )
+            return result
+
+    def _failure_diagnostic(
+        self,
+        trace: _RunTrace,
+        error: BaseException,
+        *,
+        escalation_code: str,
+    ) -> AdjudicationRunDiagnostic | None:
+        name = type(error).__name__
+        error_class = name if _ERROR_CLASS_RE.fullmatch(name) else None
+        http_status = _http_status(error)
+        if http_status is None:
+            http_status = trace.http_status
+        elapsed_ms = int((asyncio.get_running_loop().time() - trace.started) * 1000)
+        elapsed_ms = min(max(elapsed_ms, 0), 3_600_000)
+        model = self._model if _MODEL_RE.fullmatch(self._model) else None
+        provider = (
+            self._inference_provider
+            if _PROVIDER_RE.fullmatch(self._inference_provider)
+            else None
         )
+        try:
+            return AdjudicationRunDiagnostic(
+                error_class=error_class,
+                escalation_code=escalation_code,
+                timeout_stage=_failure_stage(error),
+                http_status=http_status,
+                elapsed_ms=elapsed_ms,
+                prompt_tokens=trace.prompt_tokens,
+                completion_tokens=trace.completion_tokens,
+                final_tool_call_returned=trace.final_tool_call_returned,
+                model=model,
+                provider=provider,
+            )
+        except ValidationError:
+            logger.warning(
+                "adjudication diagnostic dropped model=%s class=%s",
+                self._model,
+                error_class,
+            )
+            return None
 
     def _certify(
         self,
@@ -1050,6 +1220,14 @@ class SourceReviewAdjudicator:
                 continue
             break
         if response.status_code >= 400:
+            trace = _run_trace.get()
+            if (
+                trace is not None
+                and isinstance(response.status_code, int)
+                and not isinstance(response.status_code, bool)
+                and 100 <= response.status_code <= 599
+            ):
+                trace.http_status = response.status_code
             response.raise_for_status()
         payload: object = response.json()
         if _retryable_model_error_type(payload) is not None:
@@ -1058,6 +1236,7 @@ class SourceReviewAdjudicator:
 
 
 def _assistant_message(payload: object) -> dict[str, object]:
+    _observe_completion(payload)
     # Metadata only: never log private source, prompts, model text or arguments.
     if isinstance(payload, dict):
         choices = payload.get("choices")
@@ -1096,6 +1275,8 @@ def _tool_call(call: object) -> tuple[str, str, dict[str, object]]:
     if not isinstance(function, dict) or not isinstance(function.get("name"), str):
         raise ValueError("adjudicator function call is invalid")
     raw = function.get("arguments")
+    # Keep the arguments as a string. A parsed object is a contract miss, and
+    # its contents are model text: record the failure class, do not store it.
     if not isinstance(raw, str):
         raise ValueError("adjudicator arguments are invalid")
     arguments = json.loads(raw)

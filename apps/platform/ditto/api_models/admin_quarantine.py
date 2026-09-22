@@ -14,7 +14,7 @@ from ditto.api_models.screener import (
     SourceReviewFinding,
 )
 from ditto.api_models.screener_review_settings import AdminShadowReviewObservation
-from ditto_screening_protocol import SourceReviewNote
+from ditto_screening_protocol import AdjudicationRunDiagnostic, SourceReviewNote
 
 QuarantineResolution = Literal["release", "rescreen", "reject"]
 DisputeResolution = Literal["release", "uphold"]
@@ -166,6 +166,9 @@ class AdminScreeningFailureDiagnostic(BaseModel):
     reason_code: str | None
     private_failure_detail: Annotated[str | None, Field(max_length=4_000)] = None
     private_failure_log_tail: Annotated[str | None, Field(max_length=16_000)] = None
+    court_diagnostic: AdjudicationRunDiagnostic | None = None
+    """Sanitized automated-court trace for this attempt. Null when the attempt
+    has no such trace, including rows screened before the field existed."""
 
 
 class AdminScreeningImageBuild(BaseModel):

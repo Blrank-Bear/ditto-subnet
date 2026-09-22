@@ -216,7 +216,116 @@ async def test_deadline_bounds_a_completion_and_its_retry(tmp_path: Path) -> Non
     assert result.decision == "escalate"
     assert result.clear_clause is None
     assert result.escalation_code == "adjudicator-failed"
+    assert result.run_diagnostic is not None
+    assert result.run_diagnostic.error_class == "TimeoutError"
+    assert result.run_diagnostic.timeout_stage == "completion"
+    assert result.run_diagnostic.http_status is None
+    assert result.run_diagnostic.final_tool_call_returned is None
+    assert result.run_diagnostic.model == "z-ai/glm-5.3-flash"
+    assert result.run_diagnostic.provider == "openrouter"
+    assert (
+        result.canonical_digest()
+        == result.model_copy(update={"run_diagnostic": None}).canonical_digest()
+    )
     assert requests == 1
+
+
+def test_tool_call_rejects_parsed_object_arguments() -> None:
+    with pytest.raises(ValueError, match="arguments are invalid"):
+        adjudicator_module._tool_call(
+            {
+                "id": "submit-1",
+                "function": {
+                    "name": "submit_adjudication",
+                    "arguments": {
+                        "decision": "clear",
+                        "reason": "model text that must not be stored",
+                    },
+                },
+            }
+        )
+
+
+async def test_object_tool_arguments_stay_fail_closed_without_their_text(
+    tmp_path: Path,
+) -> None:
+    """A parsed object is recorded as a contract failure, not stored or settled."""
+    secret = "model text that must not be stored"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "usage": {"prompt_tokens": 11, "completion_tokens": 4},
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": secret,
+                            "tool_calls": [
+                                {
+                                    "id": "submit-1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "submit_adjudication",
+                                        "arguments": {
+                                            "decision": "clear",
+                                            "reason": secret,
+                                        },
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+        )
+
+    result = await _adjudicator(
+        _key(tmp_path), httpx.MockTransport(handler)
+    ).adjudicate(_archive(tmp_path), notes=[_CONCERN])
+
+    assert result.decision == "escalate"
+    assert result.escalation_code == "adjudicator-failed"
+    diagnostic = result.run_diagnostic
+    assert diagnostic is not None
+    assert diagnostic.error_class == "ValueError"
+    assert diagnostic.timeout_stage == "response"
+    assert diagnostic.http_status is None
+    assert diagnostic.elapsed_ms >= 0
+    assert diagnostic.prompt_tokens == 11
+    assert diagnostic.completion_tokens == 4
+    assert diagnostic.final_tool_call_returned is True
+    assert secret not in result.model_dump_json()
+    assert secret not in diagnostic.model_dump_json()
+
+
+async def test_provider_status_is_recorded_without_the_response_body(
+    tmp_path: Path,
+) -> None:
+    secret = "prompt text that must not be stored"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": {"message": secret}})
+
+    result = await _adjudicator(
+        _key(tmp_path), httpx.MockTransport(handler)
+    ).adjudicate(_archive(tmp_path), notes=[_CONCERN])
+
+    assert result.decision == "escalate"
+    assert result.escalation_code == "adjudicator-failed"
+    assert result.reason == (
+        "Automated adjudication did not complete; held for operator review"
+    )
+    diagnostic = result.run_diagnostic
+    assert diagnostic is not None
+    assert diagnostic.error_class == "HTTPStatusError"
+    assert diagnostic.timeout_stage == "response"
+    assert diagnostic.http_status == 503
+    assert diagnostic.final_tool_call_returned is None
+    assert diagnostic.prompt_tokens is None
+    assert secret not in result.model_dump_json()
+    assert "error" not in diagnostic.model_dump(mode="json")
 
 
 @pytest.mark.parametrize(

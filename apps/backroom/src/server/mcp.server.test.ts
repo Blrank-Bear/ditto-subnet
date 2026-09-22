@@ -5137,7 +5137,10 @@ describe('Backroom MCP tools', () => {
       arguments: { agentId, attemptId },
     })
     expect(allowed.isError).not.toBe(true)
-    expect(readJsonResult(allowed)).toEqual(diagnostic)
+    expect(readJsonResult(allowed)).toEqual({
+      ...diagnostic,
+      court_diagnostic: null,
+    })
     expect(fetchMock).toHaveBeenCalledWith(
       `https://platform-api.heyditto.ai/api/v1/admin/screening-submissions/${agentId}/attempts/${attemptId}/failure-diagnostic`,
       expect.objectContaining({

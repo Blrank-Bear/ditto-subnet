@@ -1166,7 +1166,7 @@ export function createBackroomMcpServer(props: McpGrantProps) {
     {
       title: 'Get screening failure diagnostic',
       description:
-        'Read the bounded, sanitized private failure detail and log tail retained for one exact screening attempt. Supply both the agent UUID and attempt UUID; Platform verifies that the attempt belongs to that submission and returns the artifact SHA-256, attempt status, policy version, reason code, and timestamps alongside the diagnostic. This is operator infrastructure evidence, not a policy verdict. Requires backroom:artifact:read because the text can contain miner-influenced build or runtime diagnostics.',
+        'Read one exact screening attempt. court_diagnostic is the narrow automated-court trace: error class, escalation code, timeout stage, provider HTTP status, elapsed milliseconds, prompt and completion token counts, and whether a final tool call was returned. That object contains no source, prompt, response text, credential, model text, or raw log. It is null when the attempt has no court trace, including attempts screened before the field existed. private_failure_detail and private_failure_log_tail are the separate build/runtime fields and are null on a court hold. A court failure is not a misconduct finding and not a clearance. Reading this does not clear, reject, or rescreen. Requires backroom:artifact:read because the private failure text, when present, can contain miner-influenced build or runtime diagnostics.',
       inputSchema: screeningFailureDiagnosticInputSchema,
       annotations: toolAnnotations('read'),
     },

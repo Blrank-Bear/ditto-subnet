@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from ditto_screening_protocol import (
+    AdjudicationRunDiagnostic,
     SourceReviewAdjudication,
     SourceReviewAuthorityTransition,
     SourceReviewCausalEvidence,
@@ -740,6 +741,54 @@ def test_adjudication_reject_invariant_is_bound_to_policy_version() -> None:
 
     current = SourceReviewAdjudication(policy_version=13, **values)
     assert current.reject_invariant == SourceReviewInvariant.EVALUATION_INDEPENDENCE
+
+
+def test_run_diagnostic_stays_out_of_the_signed_adjudication() -> None:
+    base = {
+        "decision": "escalate",
+        "reason": "Automated adjudication did not complete; held for operator review",
+        "model": "z-ai/glm-5.3-flash",
+        "prompt_revision": "adjudicator-v3-policy-v13",
+        "escalation_code": "adjudicator-failed",
+    }
+    diagnostic = AdjudicationRunDiagnostic(
+        error_class="HTTPStatusError",
+        escalation_code="adjudicator-failed",
+        timeout_stage="response",
+        http_status=503,
+        elapsed_ms=600_000,
+        prompt_tokens=12,
+        completion_tokens=1,
+        final_tool_call_returned=False,
+        model="z-ai/glm-5.3-flash",
+        provider="openrouter",
+    )
+    plain = SourceReviewAdjudication(**base)
+    diagnosed = SourceReviewAdjudication(**base, run_diagnostic=diagnostic)
+
+    assert diagnosed.canonical_digest() == plain.canonical_digest()
+    restored = AdjudicationRunDiagnostic.model_validate(
+        {
+            **diagnostic.model_dump(mode="json"),
+            "exception": "prompt text must not become authoritative",
+        }
+    )
+    assert "exception" not in restored.model_dump(mode="json")
+    with pytest.raises(ValidationError):
+        AdjudicationRunDiagnostic(
+            elapsed_ms=1,
+            model="the model replied with screening instructions",
+        )
+    with pytest.raises(ValidationError, match="run diagnostic requires an escalation"):
+        SourceReviewAdjudication(
+            decision="clear",
+            reason="the served model writes the reply",
+            clear_clause="model_authors_graded_slot",
+            citations=[SourceReviewCitation(path="src/main.rs", line=6)],
+            model="test-court",
+            prompt_revision="adjudicator-v3-policy-v13",
+            run_diagnostic=AdjudicationRunDiagnostic(elapsed_ms=1),
+        )
 
 
 def test_observation_decision_fields_are_bound_to_the_finding() -> None:

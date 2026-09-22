@@ -5678,6 +5678,14 @@ def _quarantine_payload_json(
     return evidence_json, finding_json
 
 
+def _court_diagnostic_json(payload: ScreenResultRequest) -> dict[str, object] | None:
+    """Copy the sanitized court trace off a verdict, if this run recorded one."""
+    adjudication = payload.adjudication
+    if adjudication is None or adjudication.run_diagnostic is None:
+        return None
+    return adjudication.run_diagnostic.model_dump(mode="json")
+
+
 async def _queue_fanout_shadow_review(
     session: AsyncSession,
     *,
@@ -5788,11 +5796,13 @@ async def _backfill_quarantine_payloads(
         if payload.review_notes is not None
         else None
     )
+    court_json = _court_diagnostic_json(payload)
     if (
         evidence_json is None
         and finding_json is None
         and audit_json is None
         and notes_json is None
+        and court_json is None
     ):
         return
     quarantine = await session.scalar(
@@ -5830,6 +5840,8 @@ async def _backfill_quarantine_payloads(
         and quarantine.finding_digest == payload.finding_digest
     ):
         quarantine.finding = finding_json
+    if quarantine.court_diagnostic is None and court_json is not None:
+        quarantine.court_diagnostic = court_json
 
 
 def _backfill_private_failure_feedback(
@@ -6743,6 +6755,7 @@ async def submit_result(
                         reason_code=stored_reason_code or INCONCLUSIVE_REASON_CODE,
                         evidence=evidence_json,
                         finding=finding_json,
+                        court_diagnostic=_court_diagnostic_json(payload),
                         status="resolved" if evidence_deferred else "active",
                         resolved_at=resolved_at,
                         resolved_by=(

@@ -935,6 +935,14 @@ class ScreeningQuarantine(Base):
     verifiable end to end. Null before the review payloads landed and for
     quarantines with no source-review finding."""
 
+    court_diagnostic: Mapped[dict | None] = mapped_column(
+        _NULLABLE_JSON_VARIANT, nullable=True
+    )
+    """Sanitized automated-court failure trace: error class, stage, provider
+    status, elapsed time, and token counts. No source, prompt, credentials, or
+    model text. Null when the court did not fail this way and on rows written
+    before the trace existed."""
+
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="active")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()

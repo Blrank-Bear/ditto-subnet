@@ -385,6 +385,63 @@ async def test_l4_escalation_terminally_holds_an_early_l1_provider_fault(
 
 
 @pytest.mark.asyncio
+async def test_adjudicator_failure_diagnostic_is_retained_on_the_hold(
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
+    """A court crash stays a hold and keeps the sanitized trace."""
+    diagnostic = {
+        "error_class": "ValueError",
+        "escalation_code": "adjudicator-failed",
+        "timeout_stage": "response",
+        "http_status": None,
+        "elapsed_ms": 42,
+        "prompt_tokens": 10,
+        "completion_tokens": 3,
+        "final_tool_call_returned": True,
+        "model": "z-ai/glm-5.3-flash",
+        "provider": "openrouter",
+    }
+    attempt_id = await _seed_held_screen(
+        session_maker,
+        observation=_held_observation(
+            {
+                "decision": "escalate",
+                "reason": (
+                    "Automated adjudication did not complete; held for operator review"
+                ),
+                "citations": [],
+                "notes_considered": 1,
+                "model": "z-ai/glm-5.3-flash",
+                "prompt_revision": "adjudicator-v2-policy-v10",
+                "escalation_code": "adjudicator-failed",
+                "run_diagnostic": diagnostic,
+            }
+        ),
+        adjudicator_mode="enforce",
+    )
+
+    await _finalize(session_maker, attempt_id)
+
+    async with session_maker() as session:
+        attempt = await session.get(ScreeningAttempt, attempt_id)
+        assert attempt is not None
+        assert attempt.status == "quarantined"
+        assert attempt.private_failure_detail is None
+        assert attempt.private_failure_log_tail is None
+        agent = await session.get(Agent, attempt.agent_id)
+        assert agent is not None
+        assert agent.status == AgentStatus.QUARANTINED
+        quarantine = await session.scalar(
+            select(ScreeningQuarantine).where(
+                ScreeningQuarantine.attempt_id == attempt_id
+            )
+        )
+        assert quarantine is not None
+        assert quarantine.court_diagnostic == diagnostic
+        assert quarantine.resolution is None
+
+
+@pytest.mark.asyncio
 async def test_an_unadjudicated_hold_is_unchanged(
     session_maker: async_sessionmaker[AsyncSession],
 ) -> None:

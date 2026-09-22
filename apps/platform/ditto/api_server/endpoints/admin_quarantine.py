@@ -14,6 +14,7 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from pydantic import ValidationError
 from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -180,7 +181,11 @@ from ditto.db.queries.payments import (
 )
 from ditto.db.queries.tickets import RETRY_COOLDOWN, ticket_attempt_cap
 from ditto.screener_policy_state import effective_screening_policy_version
-from ditto_screening_protocol import SourceReviewNote, source_review_notes_digest
+from ditto_screening_protocol import (
+    AdjudicationRunDiagnostic,
+    SourceReviewNote,
+    source_review_notes_digest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1896,10 +1901,13 @@ async def get_screening_failure_diagnostic(
     session: SessionDep,
     x_admin_actor: Annotated[str | None, Header()] = None,
 ) -> AdminScreeningFailureDiagnostic:
-    """Return the sanitized private failure for one exact attempt.
+    """Return the sanitized private failure and court trace for one attempt.
 
     The public submission history deliberately omits these fields. Backroom
     exposes this route only through its separately scoped artifact-read tool.
+    ``court_diagnostic`` is structured court metadata. It is null for attempts
+    screened before the trace existed and for failures that were not an
+    automated-court run. Reading it does not clear, reject, or rescreen.
     """
     if x_admin_actor is None or not 1 <= len(x_admin_actor) <= 120:
         raise HTTPException(status_code=422, detail="X-Admin-Actor is required")
@@ -1934,7 +1942,24 @@ async def get_screening_failure_diagnostic(
         reason_code=attempt.reason_code,
         private_failure_detail=attempt.private_failure_detail,
         private_failure_log_tail=attempt.private_failure_log_tail,
+        court_diagnostic=await _court_diagnostic(session, attempt_id),
     )
+
+
+async def _court_diagnostic(
+    session: AsyncSession, attempt_id: UUID
+) -> AdjudicationRunDiagnostic | None:
+    """Load the sanitized court trace, dropping a row that no longer validates."""
+    quarantine = await session.scalar(
+        select(ScreeningQuarantine).where(ScreeningQuarantine.attempt_id == attempt_id)
+    )
+    if quarantine is None or quarantine.court_diagnostic is None:
+        return None
+    try:
+        return AdjudicationRunDiagnostic.model_validate(quarantine.court_diagnostic)
+    except ValidationError:
+        logger.warning("screening court diagnostic rejected attempt_id=%s", attempt_id)
+        return None
 
 
 @router.post(

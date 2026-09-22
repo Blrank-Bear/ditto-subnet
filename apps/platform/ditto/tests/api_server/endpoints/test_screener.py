@@ -6843,11 +6843,123 @@ class TestQuarantineAdmin:
             "private_failure_log_tail": (
                 "source_review: ValidationError: malformed finding"
             ),
+            "court_diagnostic": None,
         }
         assert "private_failure_detail" not in ordinary.json()["attempts"][0]
         assert "private_failure_log_tail" not in ordinary.json()["attempts"][0]
         assert wrong_owner.status_code == 404
         assert missing_actor.status_code == 422
+
+    async def test_reads_sanitized_court_diagnostic_for_a_held_attempt(
+        self,
+        app: FastAPI,
+        client: httpx.AsyncClient,
+        session_maker: async_sessionmaker[AsyncSession],
+    ) -> None:
+        app.state.config = replace(
+            app.state.config,
+            admin_api_token="test-admin-token-at-least-32-characters",
+        )
+        agent_id = await _seed_agent(
+            session_maker,
+            status=AgentStatus.QUARANTINED,
+            name="held-court",
+        )
+        other_agent_id = await _seed_agent(
+            session_maker,
+            status=AgentStatus.QUARANTINED,
+            name="held-court-invalid",
+        )
+        attempt_id = uuid4()
+        invalid_attempt_id = uuid4()
+        now = datetime.now(UTC)
+        court = {
+            "error_class": "HTTPStatusError",
+            "escalation_code": "adjudicator-failed",
+            "timeout_stage": "response",
+            "http_status": 503,
+            "elapsed_ms": 600000,
+            "prompt_tokens": 1200,
+            "completion_tokens": 40,
+            "final_tool_call_returned": False,
+            "model": "z-ai/glm-5.3-flash",
+            "provider": "openrouter",
+            "exception": "prompt text that must not be stored",
+        }
+        async with session_maker() as session, session.begin():
+            for owner_id, owner_attempt_id, stored in (
+                (agent_id, attempt_id, court),
+                (
+                    other_agent_id,
+                    invalid_attempt_id,
+                    {"elapsed_ms": "nope", "exception": "prompt text"},
+                ),
+            ):
+                session.add(
+                    ScreeningAttempt(
+                        attempt_id=owner_attempt_id,
+                        agent_id=owner_id,
+                        screener_hotkey=_SCREENER_HOTKEY,
+                        policy_version=SCREENING_POLICY_VERSION,
+                        status="quarantined",
+                        started_at=now - timedelta(minutes=4),
+                        deadline=now + timedelta(minutes=6),
+                        finished_at=now,
+                        public_reason="Submission held for anti-cheat review",
+                        reason_code="source-review-adjudication-refused",
+                    )
+                )
+                session.add(
+                    ScreeningQuarantine(
+                        quarantine_id=uuid4(),
+                        agent_id=owner_id,
+                        attempt_id=owner_attempt_id,
+                        screener_hotkey=_SCREENER_HOTKEY,
+                        policy_version=SCREENING_POLICY_VERSION,
+                        manifest_digest="56" * 32,
+                        reason_code="source-review-adjudication-refused",
+                        court_diagnostic=stored,
+                        status="active",
+                        created_at=now,
+                    )
+                )
+        _install_db(app, session_maker)
+        headers = {
+            "Authorization": "Bearer test-admin-token-at-least-32-characters",
+            "X-Admin-Actor": "backroom:failure-reviewer",
+        }
+
+        diagnostic = await client.get(
+            f"/api/v1/admin/screening-submissions/{agent_id}/attempts/"
+            f"{attempt_id}/failure-diagnostic",
+            headers=headers,
+        )
+        rejected = await client.get(
+            f"/api/v1/admin/screening-submissions/{other_agent_id}/attempts/"
+            f"{invalid_attempt_id}/failure-diagnostic",
+            headers=headers,
+        )
+
+        assert diagnostic.status_code == 200, diagnostic.text
+        body = diagnostic.json()
+        assert body["private_failure_detail"] is None
+        assert body["private_failure_log_tail"] is None
+        assert body["reason_code"] == "source-review-adjudication-refused"
+        assert body["court_diagnostic"] == {
+            "error_class": "HTTPStatusError",
+            "escalation_code": "adjudicator-failed",
+            "timeout_stage": "response",
+            "http_status": 503,
+            "elapsed_ms": 600000,
+            "prompt_tokens": 1200,
+            "completion_tokens": 40,
+            "final_tool_call_returned": False,
+            "model": "z-ai/glm-5.3-flash",
+            "provider": "openrouter",
+        }
+        assert "prompt text" not in diagnostic.text
+        assert rejected.status_code == 200, rejected.text
+        assert rejected.json()["court_diagnostic"] is None
 
     async def test_screening_failure_summary_groups_live_pipeline_by_reason_code(
         self,

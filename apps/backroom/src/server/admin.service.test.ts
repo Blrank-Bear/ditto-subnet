@@ -812,7 +812,10 @@ describe('screening submission admin service', () => {
         { agentId, attemptId },
         'peyton@omniaura.ai',
       ),
-    ).resolves.toEqual(diagnostic)
+    ).resolves.toEqual({
+      ...diagnostic,
+      court_diagnostic: null,
+    })
     expect(fetchMock).toHaveBeenCalledWith(
       `https://platform-api.heyditto.ai/api/v1/admin/screening-submissions/${agentId}/attempts/${attemptId}/failure-diagnostic`,
       expect.objectContaining({
@@ -822,6 +825,54 @@ describe('screening submission admin service', () => {
         }),
       }),
     )
+  })
+
+  it('passes a sanitized court diagnostic through and drops model text', async () => {
+    process.env.DITTO_ADMIN_API_TOKEN = 'secret'
+    const agentId = '90cb5697-cbc1-40f4-a27e-439a7986a054'
+    const attemptId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const court = {
+      error_class: 'ValueError',
+      escalation_code: 'adjudicator-failed',
+      timeout_stage: 'response',
+      http_status: null,
+      elapsed_ms: 42,
+      prompt_tokens: 10,
+      completion_tokens: 3,
+      final_tool_call_returned: true,
+      model: 'z-ai/glm-5.3-flash',
+      provider: 'openrouter',
+    }
+    const diagnostic = {
+      agent_id: agentId,
+      artifact_sha256: 'ab'.repeat(32),
+      agent_status: 'quarantined',
+      attempt_id: attemptId,
+      policy_version: 13,
+      attempt_status: 'quarantined',
+      started_at: '2026-09-22T08:00:00Z',
+      deadline: '2026-09-22T08:10:00Z',
+      finished_at: '2026-09-22T08:06:00Z',
+      reason: 'Submission held for anti-cheat review',
+      reason_code: 'source-review-adjudication-refused',
+      private_failure_detail: null,
+      private_failure_log_tail: null,
+      court_diagnostic: {
+        ...court,
+        exception: 'prompt text that must not be stored',
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(diagnostic)))
+
+    await expect(
+      fetchScreeningFailureDiagnostic(
+        { agentId, attemptId },
+        'peyton@omniaura.ai',
+      ),
+    ).resolves.toEqual({
+      ...diagnostic,
+      court_diagnostic: court,
+    })
   })
 
   it('passes the payment coldkey through on a submission read', async () => {
