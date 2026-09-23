@@ -152,6 +152,12 @@ from ditto.api_server.endpoints.validator_coding_hosted import (
 from ditto.api_server.endpoints.validator_coding_inference import (
     coding_inference_transport_from_env,
 )
+from ditto.api_server.endpoints.verification_replay import (
+    admin_router as admin_verification_replay_router,
+)
+from ditto.api_server.endpoints.verification_replay import (
+    screener_router as screener_verification_replay_router,
+)
 from ditto.api_server.errors import ApiServerConfigError, ApiServerLifespanError
 from ditto.api_server.inference_concurrency_settings import (
     InferenceConcurrencySettingsResolver,
@@ -766,6 +772,8 @@ def create_api_server(config: ApiServerConfig | None = None) -> FastAPI:
     app.include_router(admin_miner_fees_router, prefix="/api/v1")
     app.include_router(admin_conversation_router, prefix="/api/v1")
     app.include_router(screener_conversation_router, prefix="/api/v1")
+    app.include_router(admin_verification_replay_router, prefix="/api/v1")
+    app.include_router(screener_verification_replay_router, prefix="/api/v1")
 
     # Serve the public dashboard SPA same-origin at ``/`` so the platform is the
     # transparency front door (its ``/api/v1/public/*`` calls need no CORS). The

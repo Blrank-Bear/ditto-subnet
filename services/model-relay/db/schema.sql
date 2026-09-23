@@ -897,6 +897,50 @@ CREATE FUNCTION public.reject_screening_attempt_artifact_change() RETURNS trigge
 
 
 --
+-- Name: reject_verification_replay_binding_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reject_verification_replay_binding_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+        BEGIN
+            IF (NEW.request_id, NEW.agent_id, NEW.quarantine_id,
+                NEW.source_attempt_id, NEW.artifact_sha256,
+                NEW.policy_version, NEW.image_upload_id)
+               IS DISTINCT FROM
+               (OLD.request_id, OLD.agent_id, OLD.quarantine_id,
+                OLD.source_attempt_id, OLD.artifact_sha256,
+                OLD.policy_version, OLD.image_upload_id) THEN
+                RAISE EXCEPTION 'verification replay source binding is immutable';
+            END IF;
+            IF OLD.image_verified_storage_key IS NOT NULL AND
+               NEW.image_verified_storage_key IS DISTINCT FROM
+               OLD.image_verified_storage_key THEN
+                RAISE EXCEPTION 'verification replay verified image key is immutable';
+            END IF;
+            IF OLD.image_verified_at IS NOT NULL AND
+               NEW.image_verified_at IS DISTINCT FROM OLD.image_verified_at THEN
+                RAISE EXCEPTION 'verification replay image verification is immutable';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+
+
+--
+-- Name: reject_verification_replay_receipt_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reject_verification_replay_receipt_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+        BEGIN
+            RAISE EXCEPTION 'verification replay receipts are append-only';
+        END;
+        $$;
+
+
+--
 -- Name: stamp_review_deadline_activation_created_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3964,12 +4008,14 @@ CREATE TABLE public.screener_nodes (
     rotated_at timestamp with time zone DEFAULT now() NOT NULL,
     revoked_at timestamp with time zone,
     status_reason text,
+    verification_replay_capacity integer DEFAULT 0 NOT NULL,
     CONSTRAINT ck_screener_nodes_screener_nodes_capacity_check CHECK (((capacity >= 1) AND (capacity <= 16))),
     CONSTRAINT ck_screener_nodes_screener_nodes_environment_check CHECK ((environment ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
     CONSTRAINT ck_screener_nodes_screener_nodes_image_reference_check CHECK (((image_reference IS NULL) OR (image_reference ~ '^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'::text))),
     CONSTRAINT ck_screener_nodes_screener_nodes_node_id_length_check CHECK (((length(node_id) >= 1) AND (length(node_id) <= 63))),
     CONSTRAINT ck_screener_nodes_screener_nodes_previous_token_hash_check CHECK (((previous_token_hash IS NULL) OR (length(previous_token_hash) = 64))),
     CONSTRAINT ck_screener_nodes_screener_nodes_provider_check CHECK ((provider = ANY (ARRAY['gcp'::text, 'targon'::text, 'hetzner'::text, 'home'::text, 'test'::text]))),
+    CONSTRAINT ck_screener_nodes_screener_nodes_replay_capacity_check CHECK (((verification_replay_capacity >= 0) AND (verification_replay_capacity <= 4))),
     CONSTRAINT ck_screener_nodes_screener_nodes_status_check CHECK ((status = ANY (ARRAY['active'::text, 'draining'::text, 'quarantined'::text, 'revoked'::text]))),
     CONSTRAINT ck_screener_nodes_screener_nodes_token_hash_check CHECK ((length(token_hash) = 64))
 );
@@ -4391,6 +4437,58 @@ CREATE TABLE public.screening_verification_receipts (
     CONSTRAINT ck_screening_verification_receipts_svr_policy_version_check CHECK ((policy_version > 0)),
     CONSTRAINT ck_screening_verification_receipts_svr_profile_sha_check CHECK (((profile_sha256 IS NULL) OR (length(profile_sha256) = 64))),
     CONSTRAINT ck_screening_verification_receipts_svr_worker_check CHECK (((length(worker_hotkey) >= 1) AND (length(worker_hotkey) <= 120)))
+);
+
+
+--
+-- Name: screening_verification_replay_receipts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.screening_verification_replay_receipts (
+    receipt_id uuid NOT NULL,
+    replay_id uuid NOT NULL,
+    check_code text NOT NULL,
+    evidence_sha256 text NOT NULL,
+    worker_hotkey text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_screening_verification_replay_receipts_svrr_check_code_check CHECK (((length(check_code) >= 1) AND (length(check_code) <= 64))),
+    CONSTRAINT ck_screening_verification_replay_receipts_svrr_evidence_9745 CHECK ((length(evidence_sha256) = 64))
+);
+
+
+--
+-- Name: screening_verification_replays; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.screening_verification_replays (
+    replay_id uuid NOT NULL,
+    request_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    quarantine_id uuid NOT NULL,
+    source_attempt_id uuid NOT NULL,
+    artifact_sha256 text NOT NULL,
+    policy_version integer NOT NULL,
+    image_upload_id uuid,
+    image_sha256 text,
+    image_size_bytes bigint,
+    image_id text,
+    image_staging_id uuid,
+    image_verified_at timestamp with time zone,
+    image_verified_storage_key text,
+    status text DEFAULT 'queued'::text NOT NULL,
+    worker_hotkey text,
+    lease_deadline timestamp with time zone,
+    actor text NOT NULL,
+    reason text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    failure_code text,
+    CONSTRAINT ck_screening_verification_replays_svrp_artifact_sha_check CHECK ((artifact_sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ck_screening_verification_replays_svrp_image_metadata_check CHECK ((((image_sha256 IS NULL) AND (image_size_bytes IS NULL) AND (image_id IS NULL) AND (image_verified_at IS NULL)) OR ((image_sha256 IS NOT NULL) AND (image_size_bytes > 0) AND (image_id IS NOT NULL)))),
+    CONSTRAINT ck_screening_verification_replays_svrp_image_sha_check CHECK (((image_sha256 IS NULL) OR (image_sha256 ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ck_screening_verification_replays_svrp_policy_check CHECK ((policy_version = 13)),
+    CONSTRAINT ck_screening_verification_replays_svrp_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'running'::text, 'reported'::text, 'failed'::text]))),
+    CONSTRAINT ck_screening_verification_replays_svrp_verified_storage_e6b8 CHECK (((image_upload_id IS NOT NULL) OR (image_verified_at IS NULL) OR (image_verified_storage_key IS NOT NULL)))
 );
 
 
@@ -6806,6 +6904,22 @@ ALTER TABLE ONLY public.screening_verification_receipts
 
 
 --
+-- Name: screening_verification_replay_receipts pk_screening_verification_replay_receipts; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.screening_verification_replay_receipts
+    ADD CONSTRAINT pk_screening_verification_replay_receipts PRIMARY KEY (receipt_id);
+
+
+--
+-- Name: screening_verification_replays pk_screening_verification_replays; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.screening_verification_replays
+    ADD CONSTRAINT pk_screening_verification_replays PRIMARY KEY (replay_id);
+
+
+--
 -- Name: source_emission_collector_cursors pk_source_emission_collector_cursors; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7211,6 +7325,14 @@ ALTER TABLE ONLY public.submission_settings_revisions
 
 ALTER TABLE ONLY public.submission_source_reviews
     ADD CONSTRAINT submission_source_reviews_attempt_key UNIQUE (attempt_id);
+
+
+--
+-- Name: screening_verification_replays svrp_request_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.screening_verification_replays
+    ADD CONSTRAINT svrp_request_id_key UNIQUE (request_id);
 
 
 --
@@ -8348,6 +8470,27 @@ CREATE INDEX svr_attempt_created_idx ON public.screening_verification_receipts U
 
 
 --
+-- Name: svrp_claim_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX svrp_claim_idx ON public.screening_verification_replays USING btree (status, created_at);
+
+
+--
+-- Name: svrp_one_active_source_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX svrp_one_active_source_idx ON public.screening_verification_replays USING btree (agent_id, source_attempt_id) WHERE (status = ANY (ARRAY['queued'::text, 'running'::text]));
+
+
+--
+-- Name: svrr_replay_code_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX svrr_replay_code_idx ON public.screening_verification_replay_receipts USING btree (replay_id, check_code);
+
+
+--
 -- Name: trusted_image_builds_queue_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8793,6 +8936,20 @@ CREATE TRIGGER validator_tickets_bench_version_floor BEFORE INSERT OR UPDATE ON 
 --
 
 CREATE TRIGGER validator_tickets_purpose_guard BEFORE UPDATE ON public.validator_tickets FOR EACH ROW EXECUTE FUNCTION public.guard_validator_ticket_purpose();
+
+
+--
+-- Name: screening_verification_replays verification_replay_binding_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER verification_replay_binding_immutable BEFORE UPDATE ON public.screening_verification_replays FOR EACH ROW EXECUTE FUNCTION public.reject_verification_replay_binding_change();
+
+
+--
+-- Name: screening_verification_replay_receipts verification_replay_receipt_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER verification_replay_receipt_immutable BEFORE DELETE OR UPDATE ON public.screening_verification_replay_receipts FOR EACH ROW EXECUTE FUNCTION public.reject_verification_replay_receipt_change();
 
 
 --
@@ -9569,6 +9726,46 @@ ALTER TABLE ONLY public.screening_verification_receipts
 
 ALTER TABLE ONLY public.screening_verification_receipts
     ADD CONSTRAINT fk_screening_verification_receipts_attempt_id_screening_3974 FOREIGN KEY (attempt_id) REFERENCES public.screening_attempts(attempt_id) ON DELETE CASCADE;
+
+
+--
+-- Name: screening_verification_replay_receipts fk_screening_verification_replay_receipts_replay_id_scr_4090; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.screening_verification_replay_receipts
+    ADD CONSTRAINT fk_screening_verification_replay_receipts_replay_id_scr_4090 FOREIGN KEY (replay_id) REFERENCES public.screening_verification_replays(replay_id) ON DELETE CASCADE;
+
+
+--
+-- Name: screening_verification_replays fk_screening_verification_replays_agent_id_agents; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.screening_verification_replays
+    ADD CONSTRAINT fk_screening_verification_replays_agent_id_agents FOREIGN KEY (agent_id) REFERENCES public.agents(agent_id) ON DELETE CASCADE;
+
+
+--
+-- Name: screening_verification_replays fk_screening_verification_replays_image_upload_id_scree_1bcd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.screening_verification_replays
+    ADD CONSTRAINT fk_screening_verification_replays_image_upload_id_scree_1bcd FOREIGN KEY (image_upload_id) REFERENCES public.screened_image_uploads(image_upload_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: screening_verification_replays fk_screening_verification_replays_quarantine_id_screeni_16bb; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.screening_verification_replays
+    ADD CONSTRAINT fk_screening_verification_replays_quarantine_id_screeni_16bb FOREIGN KEY (quarantine_id) REFERENCES public.screening_quarantines(quarantine_id) ON DELETE CASCADE;
+
+
+--
+-- Name: screening_verification_replays fk_screening_verification_replays_source_attempt_id_scr_729c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.screening_verification_replays
+    ADD CONSTRAINT fk_screening_verification_replays_source_attempt_id_scr_729c FOREIGN KEY (source_attempt_id) REFERENCES public.screening_attempts(attempt_id) ON DELETE CASCADE;
 
 
 --
