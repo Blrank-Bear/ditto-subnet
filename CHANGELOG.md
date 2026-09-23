@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.297.0 (2026-09-23)
+
+### Features
+
+- **platform**: Expose exact V13 review deadline diagnostic
+  ([#2171](https://github.com/ditto-assistant/ditto-subnet/pull/2171),
+  [`4156340`](https://github.com/ditto-assistant/ditto-subnet/commit/41563403656879c5d5d746af713af1c9c78c213f))
+
+
 ## v0.296.0 (2026-09-23)
 
 ### Features
