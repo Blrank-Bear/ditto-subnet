@@ -18,10 +18,12 @@ from ditto_screener.adjudicator import (
     SourceReviewAdjudicator,
     _adjudicator_tools_for_policy,
     _compacted_adjudicator_messages,
+    _preload_ledger_evidence,
     _system_prompt,
     adjudicator_prompt_revision,
     build_adjudicator,
 )
+from ditto_screener.source_review import TarSourceRepository
 
 
 def test_miner_reason_preserves_complete_explanation_and_paragraphs() -> None:
@@ -70,6 +72,97 @@ def _archive(tmp_path: Path) -> str:
             member.size = len(raw)
             archive.addfile(member, io.BytesIO(raw))
     return str(path)
+
+
+def test_preloaded_concern_includes_optional_gate_default_and_image(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "gated.tar.gz"
+    files = {
+        "Dockerfile": "FROM python:3.12\nENV PYTHONUNBUFFERED=1\n",
+        "agent/config.py": (
+            "import os\n"
+            "MONEY_SHAPE_REASK = int(os.environ.get("
+            "'DITTOBENCH_MONEY_SHAPE_REASK', '0'))\n"
+        ),
+        "agent/runner.py": (
+            "from agent import config\n"
+            "if config.MONEY_SHAPE_REASK:\n"
+            "    retry_money_shape()\n"
+        ),
+    }
+    with tarfile.open(archive_path, "w:gz") as archive:
+        for name, value in files.items():
+            raw = value.encode()
+            member = tarfile.TarInfo(name)
+            member.size = len(raw)
+            archive.addfile(member, io.BytesIO(raw))
+    repository = TarSourceRepository(str(archive_path))
+    evidence, reads, incomplete = _preload_ledger_evidence(
+        repository,
+        [
+            {
+                "kind": "concern",
+                "path": "agent/runner.py",
+                "line": 2,
+                "summary": "money-shape reask may be reachable",
+            }
+        ],
+    )
+    assert '"path":"agent/config.py"' in evidence
+    assert '"path":"Dockerfile"' in evidence
+    assert ("agent/config.py", 2) in reads
+    assert ("Dockerfile", 2) in reads
+    assert incomplete is False
+
+
+async def test_late_dockerfile_env_cannot_be_decided_from_truncated_preload(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "late-env.tar.gz"
+    files = {
+        "Dockerfile": (
+            "FROM python:3.12\n"
+            + "RUN true\n" * 43
+            + "ENV DITTOBENCH_MONEY_SHAPE_REASK=1\n"
+        ),
+        "agent/config.py": (
+            "import os\n"
+            "MONEY_SHAPE_REASK = int(os.environ.get("
+            "'DITTOBENCH_MONEY_SHAPE_REASK', '0'))\n"
+        ),
+        "agent/runner.py": (
+            "from agent import config\n"
+            "if config.MONEY_SHAPE_REASK:\n"
+            "    retry_money_shape()\n"
+        ),
+    }
+    with tarfile.open(archive_path, "w:gz") as archive:
+        for name, value in files.items():
+            raw = value.encode()
+            member = tarfile.TarInfo(name)
+            member.size = len(raw)
+            archive.addfile(member, io.BytesIO(raw))
+
+    def unexpected_request(_request: httpx.Request) -> httpx.Response:
+        pytest.fail("court must not decide from a truncated Dockerfile")
+
+    result = await _adjudicator(
+        _key(tmp_path), httpx.MockTransport(unexpected_request)
+    ).adjudicate(
+        str(archive_path),
+        notes=[
+            {
+                "kind": "concern",
+                "path": "agent/runner.py",
+                "line": 2,
+                "summary": "money-shape reask may be reachable",
+            }
+        ],
+        ledger_final=True,
+    )
+    assert result.decision == "escalate"
+    assert result.escalation_code == "adjudicator-evidence-incomplete"
 
 
 def _key(tmp_path: Path) -> Path:
