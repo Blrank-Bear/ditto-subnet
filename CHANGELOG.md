@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.303.0 (2026-09-23)
+
+### Features
+
+- **platform**: Register V13 packages by generation group
+  ([#2180](https://github.com/ditto-assistant/ditto-subnet/pull/2180),
+  [`8bb30c3`](https://github.com/ditto-assistant/ditto-subnet/commit/8bb30c37d78f45fe8fe1ba2eedaffd5ab8ca98ba))
+
+
 ## v0.302.0 (2026-09-23)
 
 ### Features
