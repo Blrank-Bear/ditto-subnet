@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v0.287.1 (2026-09-23)
+
+### Bug Fixes
+
+- **infra**: Preserve live screener identity and datagen revision
+  ([#2124](https://github.com/ditto-assistant/ditto-subnet/pull/2124),
+  [`34f985f`](https://github.com/ditto-assistant/ditto-subnet/commit/34f985f99cfafa79b6b015967bf92e5ad13ee0a5))
+
+- **screener**: Mirror scorer tool capability endpoint in audits
+  ([#2126](https://github.com/ditto-assistant/ditto-subnet/pull/2126),
+  [`cccd820`](https://github.com/ditto-assistant/ditto-subnet/commit/cccd8209c41412e2adb45eda2c9a7ed82754f143))
+
+### Chores
+
+- **infra**: Prepare stopped GCP screener retirement
+  ([#2112](https://github.com/ditto-assistant/ditto-subnet/pull/2112),
+  [`0da0265`](https://github.com/ditto-assistant/ditto-subnet/commit/0da02650330f4458d9f8fb3f32482d552fb20f76))
+
+- **infra**: Remove stopped GCP screener pet
+  ([#2113](https://github.com/ditto-assistant/ditto-subnet/pull/2113),
+  [`6c1ec92`](https://github.com/ditto-assistant/ditto-subnet/commit/6c1ec92e269c9b7b613736a289eb112aecf31998))
+
+
 ## v0.287.0 (2026-09-23)
 
 ### Features
