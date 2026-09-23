@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.11 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Preload optional gate configuration for source court
+  ([#2140](https://github.com/ditto-assistant/ditto-subnet/pull/2140),
+  [`3a7980e`](https://github.com/ditto-assistant/ditto-subnet/commit/3a7980e4f52113841025da876c587edc8eba51ee))
+
+
 ## v0.287.10 (2026-09-23)
 
 ### Bug Fixes
