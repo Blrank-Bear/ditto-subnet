@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.290.1 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Use tool-quality routing for adjudication
+  ([#2150](https://github.com/ditto-assistant/ditto-subnet/pull/2150),
+  [`938ea0a`](https://github.com/ditto-assistant/ditto-subnet/commit/938ea0aa6f94ee5a052412e157d851529e8b8ee2))
+
+### Documentation
+
+- **skills**: Add browser-based Discord miner triage
+  ([#2143](https://github.com/ditto-assistant/ditto-subnet/pull/2143),
+  [`9fae617`](https://github.com/ditto-assistant/ditto-subnet/commit/9fae61743f005987d4a28e082c362d46d36b36f9))
+
+
 ## v0.290.0 (2026-09-23)
 
 ### Bug Fixes
