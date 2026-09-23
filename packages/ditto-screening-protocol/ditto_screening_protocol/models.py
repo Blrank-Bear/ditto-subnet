@@ -1238,6 +1238,8 @@ class AdjudicationRunDiagnostic(BaseModel):
         | None
     ) = None
     """Fixed, text-free subtype of a court failure; null on older attempts."""
+    response_bound_kind: Literal["wire", "tool"] | None = None
+    """Which bounded response surface overflowed; old consumers ignore it."""
     escalation_code: (
         Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")] | None
     ) = None

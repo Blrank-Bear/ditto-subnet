@@ -181,10 +181,19 @@ _MAX_COMPLETION_REQUEST_SECONDS = 180.0
 _MAX_COMPLETION_REQUEST_ATTEMPTS = 2
 _MAX_COMPLETION_IDLE_SECONDS = 75.0
 _MAX_COMPLETION_RESPONSE_BYTES = 512_000
-# SSE repeats JSON framing for every token, and a buffered response may include
-# unused content alongside a short tool call. Bound the wire separately from
-# the tool data used by the court so a valid 6k-token completion has room.
-_MAX_COMPLETION_STREAM_BYTES = 2_000_000
+# SSE repeats JSON framing for every token, and a 16k-token completion can
+# exceed 2 MB of wire data even when its final tool call is small. This is a
+# streaming transport ceiling, not a license to retain more model arguments:
+# the separate 512 KB tool-data bound still applies.
+_MAX_COMPLETION_STREAM_BYTES = 8_000_000
+
+
+class CompletionWireTooLarge(ValueError):
+    """The gateway streamed too much framing/content for one court turn."""
+
+
+class CompletionToolTooLarge(ValueError):
+    """The actual model tool-call data exceeded the strict verdict bound."""
 
 
 class IncompleteStreamError(ValueError):
@@ -626,6 +635,10 @@ def _failure_stage(error: BaseException) -> _RunStage:
 
 def _failure_code(error: BaseException) -> str:
     """Classify only known local failure shapes; never persist exception text."""
+    if isinstance(error, (CompletionWireTooLarge, CompletionToolTooLarge)):
+        # Keep the old failure_code wire value so an older Platform deployment
+        # can still validate this observation during a rolling release.
+        return "response-too-large"
     if isinstance(error, ProviderStreamError):
         return "provider-stream-error"
     if isinstance(error, ProviderBodyError):
@@ -646,8 +659,6 @@ def _failure_code(error: BaseException) -> str:
             return "provider-body-error"
         if message == "adjudicator stream ended without a tool call":
             return "stream-no-tool-call"
-        if message == "adjudicator completion exceeded response bound":
-            return "response-too-large"
         if message.startswith("adjudicator stream "):
             return "stream-invalid"
         if message.startswith("adjudicator exceeded lease budget"):
@@ -1079,6 +1090,13 @@ class SourceReviewAdjudicator:
                 model=model,
                 provider=provider,
                 upstream=trace.upstream,
+                response_bound_kind=(
+                    "wire"
+                    if isinstance(error, CompletionWireTooLarge)
+                    else "tool"
+                    if isinstance(error, CompletionToolTooLarge)
+                    else None
+                ),
             )
         except ValidationError:
             logger.warning(
@@ -1454,7 +1472,9 @@ async def _completion_stream_payload(response: httpx.Response) -> object:
         async for chunk in response.aiter_bytes():
             body.extend(chunk)
             if len(body) > _MAX_COMPLETION_STREAM_BYTES:
-                raise ValueError("adjudicator completion exceeded response bound")
+                raise CompletionWireTooLarge(
+                    "adjudicator completion exceeded response bound"
+                )
         payload = json.loads(body)
         if isinstance(payload, dict):
             choices = payload.get("choices")
@@ -1467,7 +1487,7 @@ async def _completion_stream_payload(response: httpx.Response) -> object:
                         and len(json.dumps(buffered_calls).encode("utf-8"))
                         > _MAX_COMPLETION_RESPONSE_BYTES
                     ):
-                        raise ValueError(
+                        raise CompletionToolTooLarge(
                             "adjudicator completion exceeded response bound"
                         )
         return payload
@@ -1518,9 +1538,16 @@ async def _completion_stream_payload(response: httpx.Response) -> object:
                 if key in piece:
                     if not isinstance(piece[key], str):
                         raise ValueError("adjudicator stream tool field is invalid")
+                    # These are replacement fields, unlike function argument
+                    # fragments below. Some compatible gateways repeat the
+                    # call ID in every delta. Bound stored tool data, not the
+                    # sum of IDs that were overwritten and discarded.
+                    previous = call.get(key)
+                    if isinstance(previous, str):
+                        retained_bytes -= len(previous.encode("utf-8"))
                     retained_bytes += len(piece[key].encode("utf-8"))
                     if retained_bytes > _MAX_COMPLETION_RESPONSE_BYTES:
-                        raise ValueError(
+                        raise CompletionToolTooLarge(
                             "adjudicator completion exceeded response bound"
                         )
                     call[key] = piece[key]
@@ -1537,7 +1564,7 @@ async def _completion_stream_payload(response: httpx.Response) -> object:
                         raise ValueError("adjudicator stream function field is invalid")
                     retained_bytes += len(value.encode("utf-8"))
                     if retained_bytes > _MAX_COMPLETION_RESPONSE_BYTES:
-                        raise ValueError(
+                        raise CompletionToolTooLarge(
                             "adjudicator completion exceeded response bound"
                         )
                     function[key] = str(function.get(key) or "") + value
@@ -1546,7 +1573,9 @@ async def _completion_stream_payload(response: httpx.Response) -> object:
     async for line in response.aiter_lines():
         total_bytes += len(line.encode("utf-8")) + 1
         if total_bytes > _MAX_COMPLETION_STREAM_BYTES:
-            raise ValueError("adjudicator completion exceeded response bound")
+            raise CompletionWireTooLarge(
+                "adjudicator completion exceeded response bound"
+            )
         if not line:
             if consume_event():
                 done = True
