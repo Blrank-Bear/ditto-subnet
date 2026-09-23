@@ -124,10 +124,12 @@ from ditto.db.queries.tickets import issue_ticket, ticket_attempt_cap
 from ditto.tests.legacy_era import retired_era_writes_allowed
 from ditto_screening_protocol import (
     SCREENING_FLOOR_POLICY_VERSION,
+    AdjudicationCompletionReceipt,
     ScreenResultOutcome,
     ScreenReviewAudit,
     SourceReviewAdjudication,
     SourceReviewNote,
+    completion_receipt_signing_message,
     source_review_notes_digest,
     verdict_signing_message,
 )
@@ -5300,27 +5302,73 @@ class TestClaim:
             notes_considered=1,
             model="z-ai/glm-5.3-flash",
             prompt_revision="adjudicator-v2-policy-v10",
-        )
-
-        response = await client.post(
-            f"/api/v1/screener/agent/{agent_id}/result",
-            json=_result_payload(
-                agent_id,
-                passed=False,
-                attempt_id=attempt_id,
-                outcome="quarantine",
-                manifest_digest="12" * 32,
-                reason_code="source-review-adjudicated",
-                review_settings_revision=revision_id,
-                review_settings_instance_id="ditto-screener-prod",
-                review_settings_scope="*",
-                review_settings_checksum=checksum,
-                adjudication_digest=adjudication.canonical_digest(),
-                adjudication=adjudication.model_dump(mode="json"),
+            completion_receipt=AdjudicationCompletionReceipt(
+                elapsed_ms=4300,
+                first_tool_call_ms=2000,
+                first_tool_observation="stream_delta",
+                observed_model="z-ai/glm-5.3-flash",
+                gateway_provider="openrouter",
+                observed_upstream="together",
+                request_count=1,
+                final_request_prompt_bytes=8000,
+                final_request_wire_bytes=700,
+                final_request_event_count=4,
+                prompt_tokens=200,
+                completion_tokens=80,
             ),
         )
 
+        assert adjudication.completion_receipt is not None
+        receipt_signature = _sign(
+            completion_receipt_signing_message(
+                screener_hotkey=_SCREENER_HOTKEY,
+                agent_id=agent_id,
+                attempt_id=attempt_id,
+                artifact_sha256=_SHA256,
+                adjudication_digest=adjudication.canonical_digest(),
+                receipt=adjudication.completion_receipt,
+            )
+        )
+        payload = _result_payload(
+            agent_id,
+            passed=False,
+            attempt_id=attempt_id,
+            outcome="quarantine",
+            manifest_digest="12" * 32,
+            reason_code="source-review-adjudicated",
+            review_settings_revision=revision_id,
+            review_settings_instance_id="ditto-screener-prod",
+            review_settings_scope="*",
+            review_settings_checksum=checksum,
+            adjudication_digest=adjudication.canonical_digest(),
+            adjudication=adjudication.model_dump(mode="json"),
+            completion_receipt_signature=receipt_signature,
+        )
+        tampered = dict(payload)
+        tampered["adjudication"] = dict(payload["adjudication"])
+        tampered["adjudication"]["completion_receipt"] = dict(
+            payload["adjudication"]["completion_receipt"]
+        )
+        tampered["adjudication"]["completion_receipt"]["elapsed_ms"] += 1
+        unsigned = dict(payload)
+        unsigned.pop("completion_receipt_signature")
+        missing_signature = await client.post(
+            f"/api/v1/screener/agent/{agent_id}/result", json=unsigned
+        )
+        assert missing_signature.status_code == 422, missing_signature.text
+        rejected = await client.post(
+            f"/api/v1/screener/agent/{agent_id}/result", json=tampered
+        )
+        assert rejected.status_code in {401, 403}, rejected.text
+        response = await client.post(
+            f"/api/v1/screener/agent/{agent_id}/result", json=payload
+        )
+        replay = await client.post(
+            f"/api/v1/screener/agent/{agent_id}/result", json=payload
+        )
+
         assert response.status_code == 200, response.text
+        assert replay.status_code == 200, replay.text
         assert response.json()["status"] == AgentStatus.REJECTED
         async with session_maker() as session:
             agent = await session.get(Agent, agent_id)
@@ -5338,6 +5386,9 @@ class TestClaim:
             assert retained is not None and retained.status == "resolved"
             assert retained.evidence is not None
             assert retained.evidence[-1]["code"] == ("adjudicated-source-review-reject")
+            assert retained.court_completion_receipt is not None
+            assert retained.court_completion_receipt["observed_upstream"] == "together"
+            assert retained.court_completion_receipt["first_tool_call_ms"] == 2000
 
     async def test_claim_time_review_settings_survive_global_revision_change(
         self,
@@ -7260,6 +7311,7 @@ class TestQuarantineAdmin:
                 "source_review: ValidationError: malformed finding"
             ),
             "court_diagnostic": None,
+            "court_completion_receipt": None,
         }
         assert "private_failure_detail" not in ordinary.json()["attempts"][0]
         assert "private_failure_log_tail" not in ordinary.json()["attempts"][0]
@@ -7375,6 +7427,46 @@ class TestQuarantineAdmin:
         assert rows["escalate"]["request_wire_bytes"] == 500
         assert rows["escalate"]["observed_upstream"] == "near-ai"
         assert "never disclose this" not in response.text
+        async with session_maker() as session, session.begin():
+            quarantine = await session.scalar(
+                select(ScreeningQuarantine).where(
+                    ScreeningQuarantine.attempt_id == attempt_ids[0]
+                )
+            )
+            assert quarantine is not None
+            quarantine.court_completion_receipt = {
+                "elapsed_ms": 4_300,
+                "first_tool_call_ms": 2_000,
+                "first_tool_observation": "stream_delta",
+                "observed_model": "served/model-v1",
+                "gateway_provider": "openrouter",
+                "observed_upstream": "together",
+                "request_count": 1,
+                "final_request_prompt_bytes": 8_000,
+                "final_request_wire_bytes": 700,
+                "final_request_event_count": 4,
+                "prompt_tokens": 200,
+                "completion_tokens": 80,
+                "tool_arguments": "private source that must be stripped",
+            }
+        receipt_response = await client.get(
+            "/api/v1/admin/screening-adjudication-attempts?limit=2",
+            headers=headers,
+        )
+        assert receipt_response.status_code == 200, receipt_response.text
+        receipt_rows = {
+            row["adjudication_decision"]: row
+            for row in receipt_response.json()["items"]
+        }
+        assert receipt_rows["clear"]["elapsed_ms"] == 4_300
+        assert receipt_rows["clear"]["first_tool_call_ms"] == 2_000
+        assert receipt_rows["clear"]["first_tool_observation"] == "stream_delta"
+        assert receipt_rows["clear"]["observed_model"] == "served/model-v1"
+        assert receipt_rows["clear"]["observed_provider"] == "openrouter"
+        assert receipt_rows["clear"]["observed_upstream"] == "together"
+        assert receipt_rows["clear"]["request_prompt_bytes"] == 8_000
+        assert receipt_rows["clear"]["request_wire_bytes"] == 700
+        assert "private source" not in receipt_response.text
         assert (
             await client.get(
                 "/api/v1/admin/screening-adjudication-attempts?limit=101",
