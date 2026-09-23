@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.4 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Block clearance with unseen source leads
+  ([#2130](https://github.com/ditto-assistant/ditto-subnet/pull/2130),
+  [`21459c9`](https://github.com/ditto-assistant/ditto-subnet/commit/21459c910c2b3b67806531d62886a003dba0db26))
+
+
 ## v0.287.3 (2026-09-23)
 
 ### Bug Fixes
