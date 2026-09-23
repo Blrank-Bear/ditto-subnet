@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.6 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Refuse same-turn adjudicator verdicts
+  ([#2132](https://github.com/ditto-assistant/ditto-subnet/pull/2132),
+  [`0545d4f`](https://github.com/ditto-assistant/ditto-subnet/commit/0545d4f433bfc459995f713a8d6a149c6d6126ac))
+
+
 ## v0.287.5 (2026-09-23)
 
 ### Bug Fixes
