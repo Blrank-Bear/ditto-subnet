@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.291.0 (2026-09-23)
+
+### Features
+
+- **screener**: Observe bounded V13 runtime semantics
+  ([#2147](https://github.com/ditto-assistant/ditto-subnet/pull/2147),
+  [`97d741b`](https://github.com/ditto-assistant/ditto-subnet/commit/97d741b731c0e04be8e58dfc1de11da760ba9e2e))
+
+
 ## v0.290.1 (2026-09-23)
 
 ### Bug Fixes
