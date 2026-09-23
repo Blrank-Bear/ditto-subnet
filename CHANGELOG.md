@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.288.0 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Add independent L4 completion cap
+  ([#2141](https://github.com/ditto-assistant/ditto-subnet/pull/2141),
+  [`0788aa8`](https://github.com/ditto-assistant/ditto-subnet/commit/0788aa8c38ffe5d2d0732040ea414ed7dbbe41ba))
+
+### Features
+
+- **platform**: Expose exact v13 verification receipt readiness
+  ([#2139](https://github.com/ditto-assistant/ditto-subnet/pull/2139),
+  [`15bd380`](https://github.com/ditto-assistant/ditto-subnet/commit/15bd3807e36649bd5f3cb0b59a4488b9f20ee58e))
+
+
 ## v0.287.11 (2026-09-23)
 
 ### Bug Fixes
