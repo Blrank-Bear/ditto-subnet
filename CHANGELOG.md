@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v0.286.3 (2026-09-23)
+
+### Bug Fixes
+
+- **dashboard**: Stop labeling deferred source review as an integrity finding
+  ([#2077](https://github.com/ditto-assistant/ditto-subnet/pull/2077),
+  [`33101d7`](https://github.com/ditto-assistant/ditto-subnet/commit/33101d7122453e1c6e46bfbad01de55832c26b64))
+
+- **screener**: Avoid false remote-endpoint source holds
+  ([`1180588`](https://github.com/ditto-assistant/ditto-subnet/commit/1180588961fb96708d5cc7de3a883f61cde45fad))
+
+- **screener**: Bound Rust test masking across preflight
+  ([#2093](https://github.com/ditto-assistant/ditto-subnet/pull/2093),
+  [`6d71ab8`](https://github.com/ditto-assistant/ditto-subnet/commit/6d71ab8494af805ff007b63024bc751bf3c4146f))
+
+- **screener**: Record which upstream served a failed court run
+  ([#2102](https://github.com/ditto-assistant/ditto-subnet/pull/2102),
+  [`2ef1c78`](https://github.com/ditto-assistant/ditto-subnet/commit/2ef1c78f226176dca167e8d4f56afcf0d3a91e2f))
+
+- **screener**: Stream adjudicator tool calls with idle bound
+  ([`60a359d`](https://github.com/ditto-assistant/ditto-subnet/commit/60a359d918bf5bb7aa01adce3e91f3217a82c98c))
+
+
 ## v0.286.2 (2026-09-23)
 
 ### Bug Fixes
