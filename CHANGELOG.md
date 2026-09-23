@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.10 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Expose safe per-request adjudicator timeline
+  ([#2138](https://github.com/ditto-assistant/ditto-subnet/pull/2138),
+  [`beac737`](https://github.com/ditto-assistant/ditto-subnet/commit/beac7375f92be876a9bcbd23de0c6ba35e16541c))
+
+
 ## v0.287.9 (2026-09-23)
 
 ### Bug Fixes
