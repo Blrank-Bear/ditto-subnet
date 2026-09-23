@@ -876,6 +876,7 @@ async def test_response_bound_subtype_survives_diagnostic_validation(
     assert result.run_diagnostic is not None
     assert result.run_diagnostic.failure_code == "response-too-large"
     assert result.run_diagnostic.response_bound_kind == expected_code
+    assert result.completion_receipt is None
 
 
 async def test_gateway_rejecting_stream_uses_one_buffered_attempt(
@@ -1573,6 +1574,9 @@ async def test_later_unread_concern_cannot_be_silently_cleared(
     if decision == "clear":
         assert result.decision == "escalate"
         assert result.escalation_code == "adjudicator-evidence-incomplete"
+        assert result.run_diagnostic is None
+        assert result.completion_receipt is not None
+        assert result.completion_receipt.request_count == 1
     else:
         assert result.decision == "reject"
 
@@ -1623,6 +1627,7 @@ async def test_budget_terminated_review_without_evidence_settles_immediately(
     assert result.decision == "escalate"
     assert result.clear_clause is None
     assert result.escalation_code == "adjudicator-no-evidence"
+    assert result.completion_receipt is None
     assert requests == 0
 
 
@@ -1737,6 +1742,9 @@ async def test_policy_v13_can_keep_incomplete_mandatory_review_held(
     assert result.escalation_code == "adjudicator-evidence-incomplete"
     assert result.clear_clause is None
     assert result.reject_invariant is None
+    assert result.run_diagnostic is None
+    assert result.completion_receipt is not None
+    assert result.completion_receipt.request_count == 1
     assert [tool["function"]["name"] for tool in requests[0]["tools"]] == [
         "submit_adjudication",
         "request_operator_review",
