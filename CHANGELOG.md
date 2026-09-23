@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.295.0 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Bound court streams without tool progress
+  ([#2154](https://github.com/ditto-assistant/ditto-subnet/pull/2154),
+  [`4911f0e`](https://github.com/ditto-assistant/ditto-subnet/commit/4911f0e4f92e0393671a841471cb64585d23af7d))
+
+### Features
+
+- **backroom**: Expose bounded L4 attempt telemetry cohort
+  ([#2157](https://github.com/ditto-assistant/ditto-subnet/pull/2157),
+  [`e311765`](https://github.com/ditto-assistant/ditto-subnet/commit/e311765d9957061497171db48e456082a17996b6))
+
+- **protocol**: Provision and execute sealed V13 private pairs
+  ([#2155](https://github.com/ditto-assistant/ditto-subnet/pull/2155),
+  [`0b11a2d`](https://github.com/ditto-assistant/ditto-subnet/commit/0b11a2d291fe32b3d9c018414156a2c90d3cb907))
+
+
 ## v0.294.0 (2026-09-23)
 
 ### Features
