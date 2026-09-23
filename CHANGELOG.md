@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.286.0 (2026-09-23)
+
+### Bug Fixes
+
+- **platform**: Admit stronger owner generations to retest catch-up
+  ([#2106](https://github.com/ditto-assistant/ditto-subnet/pull/2106),
+  [`11170d6`](https://github.com/ditto-assistant/ditto-subnet/commit/11170d61740eb70aab6cfd1dc161bc89753158e2))
+
+### Features
+
+- **infra**: Add bounded BuildKit cache cleanup timer to screener hosts
+  ([#2063](https://github.com/ditto-assistant/ditto-subnet/pull/2063),
+  [`c65faec`](https://github.com/ditto-assistant/ditto-subnet/commit/c65faec9b66b5b7b1df9c77fdd671bce0c8cd843))
+
+
 ## v0.285.5 (2026-09-22)
 
 ### Bug Fixes
