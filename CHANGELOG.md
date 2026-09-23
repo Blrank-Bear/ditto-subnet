@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v0.301.0 (2026-09-23)
+
+### Features
+
+- **platform**: Guard V13 replay capacity activation
+  ([`d79e477`](https://github.com/ditto-assistant/ditto-subnet/commit/d79e4777e8e37ba63d9f72b45bd8dff36b674bfd))
+
+- **platform**: Record V13 private generation starts
+  ([`7456bed`](https://github.com/ditto-assistant/ditto-subnet/commit/7456bedb844fd5bb5c932fdab4589edf5ffedf09))
+
+- **screening**: Bind V13 matched control to sealed private cases
+  ([`acaa64f`](https://github.com/ditto-assistant/ditto-subnet/commit/acaa64f58c346d89c1e585153a0981bcb6c383cd))
+
+
 ## v0.300.0 (2026-09-23)
 
 ### Features
