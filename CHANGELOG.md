@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.296.0 (2026-09-23)
+
+### Features
+
+- **platform**: Register V13 private package prerequisites
+  ([#2168](https://github.com/ditto-assistant/ditto-subnet/pull/2168),
+  [`a4c9c96`](https://github.com/ditto-assistant/ditto-subnet/commit/a4c9c96d666759bc81a99b607e699a260c3523cb))
+
+- **scorer**: Expose settled V13 verifier case ledger
+  ([#2169](https://github.com/ditto-assistant/ditto-subnet/pull/2169),
+  [`28e37e1`](https://github.com/ditto-assistant/ditto-subnet/commit/28e37e1c33407f9504feac67015b999b6c98c8f1))
+
+- **screener**: Persist text-free L4 completion receipts
+  ([#2165](https://github.com/ditto-assistant/ditto-subnet/pull/2165),
+  [`e936112`](https://github.com/ditto-assistant/ditto-subnet/commit/e936112f0965074ad6a30616a5b612b731ed152d))
+
+
 ## v0.295.1 (2026-09-23)
 
 ### Bug Fixes
