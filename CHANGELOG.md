@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.300.0 (2026-09-23)
+
+### Features
+
+- **platform**: Record future V13 hold deadlines under guarded start
+  ([`7b9287c`](https://github.com/ditto-assistant/ditto-subnet/commit/7b9287ccf4a7e6619b949a5ec89f99e6cfd3b23c))
+
+
 ## v0.299.0 (2026-09-23)
 
 ### Features
