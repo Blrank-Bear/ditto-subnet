@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.286.1 (2026-09-23)
+
+### Bug Fixes
+
+- **platform**: Retry Docker build infrastructure failures
+  ([#2083](https://github.com/ditto-assistant/ditto-subnet/pull/2083),
+  [`076952c`](https://github.com/ditto-assistant/ditto-subnet/commit/076952cc3b6468defc54c9ecb0853d77bf530c76))
+
+
 ## v0.286.0 (2026-09-23)
 
 ### Bug Fixes
