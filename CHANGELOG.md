@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.5 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Prioritize throughput for adjudicator routing
+  ([#2131](https://github.com/ditto-assistant/ditto-subnet/pull/2131),
+  [`c1c0164`](https://github.com/ditto-assistant/ditto-subnet/commit/c1c01647a570065fd80dc6259de1fdf14b2f7f78))
+
+
 ## v0.287.4 (2026-09-23)
 
 ### Bug Fixes
