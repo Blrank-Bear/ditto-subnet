@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.295.1 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Require scored endpoint proof for I6 holds
+  ([#2167](https://github.com/ditto-assistant/ditto-subnet/pull/2167),
+  [`653ae51`](https://github.com/ditto-assistant/ditto-subnet/commit/653ae51a66e5e1f7a4f050f68bc8e4bc0d081045))
+
+
 ## v0.295.0 (2026-09-23)
 
 ### Bug Fixes
