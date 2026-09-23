@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.3 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Bound adjudicator tool data separately from wire
+  ([#2128](https://github.com/ditto-assistant/ditto-subnet/pull/2128),
+  [`c8c7934`](https://github.com/ditto-assistant/ditto-subnet/commit/c8c79345e60a9645866e28c848b11ed9c4b9b782))
+
+
 ## v0.287.2 (2026-09-23)
 
 ### Bug Fixes
