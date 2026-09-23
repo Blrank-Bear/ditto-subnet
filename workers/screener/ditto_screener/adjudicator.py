@@ -276,6 +276,13 @@ _MAX_COMPLETION_TOKENS = 6_000
 _MAX_COMPLETION_REQUEST_SECONDS = 180.0
 _MAX_COMPLETION_REQUEST_ATTEMPTS = 2
 _MAX_COMPLETION_IDLE_SECONDS = 75.0
+# A court turn has no useful free-form output: if a healthy SSE
+# connection has not started any tool call after two minutes, stop that request
+# while the lease still has room for the existing single retry. This is below
+# the 180-second request wall but deliberately leaves ample time for reasoning.
+# It never turns partial text into a verdict. Successful first-tool timings are
+# not yet exposed by Backroom, so keep this conservative until calibrated.
+_MAX_COMPLETION_FIRST_TOOL_SECONDS = 120.0
 _MAX_COMPLETION_RESPONSE_BYTES = 512_000
 # SSE repeats JSON framing for every token, and a 16k-token completion can
 # exceed 2 MB of wire data even when its final tool call is small. This is a
@@ -302,6 +309,10 @@ class ProviderStreamError(ValueError):
 
 class ProviderBodyError(ValueError):
     """A complete JSON body reported a retryable upstream failure."""
+
+
+class NoToolProgressError(TimeoutError):
+    """An active SSE response made no tool-call progress within its budget."""
 
 
 # Bounded by the repository tools themselves; this only caps how many of
@@ -805,6 +816,8 @@ def _failure_code(error: BaseException) -> str:
         return "provider-body-error"
     if isinstance(error, IncompleteStreamError):
         return "stream-incomplete"
+    if isinstance(error, NoToolProgressError):
+        return "stream-no-tool-progress"
     if isinstance(error, (TimeoutError, httpx.TimeoutException)):
         return "completion-timeout"
     if isinstance(error, httpx.HTTPStatusError):
@@ -1721,6 +1734,9 @@ class SourceReviewAdjudicator:
                         payload = await _completion_stream_payload(
                             response,
                             requested_max_tokens=self._max_completion_tokens,
+                            first_tool_deadline_seconds=(
+                                _MAX_COMPLETION_FIRST_TOOL_SECONDS
+                            ),
                         )
                         if request_trace is not None:
                             request_trace.stage = "complete"
@@ -1751,7 +1767,10 @@ class SourceReviewAdjudicator:
 
 
 async def _completion_stream_payload(
-    response: httpx.Response, *, requested_max_tokens: int | None = None
+    response: httpx.Response,
+    *,
+    requested_max_tokens: int | None = None,
+    first_tool_deadline_seconds: float | None = None,
 ) -> object:
     """Assemble one bounded OpenAI-compatible streamed tool-call response.
 
@@ -1792,9 +1811,22 @@ async def _completion_stream_payload(
     total_bytes = 0
     retained_bytes = 0
     done = False
+    stream_started = asyncio.get_running_loop().time()
+    saw_tool_piece = False
+
+    def require_tool_progress() -> None:
+        # Check every line as well as completed data events. SSE comments and
+        # other non-data heartbeats still keep the socket read timeout alive.
+        if (
+            not saw_tool_piece
+            and first_tool_deadline_seconds is not None
+            and asyncio.get_running_loop().time() - stream_started
+            >= first_tool_deadline_seconds
+        ):
+            raise NoToolProgressError("adjudicator stream made no tool progress")
 
     def consume_event() -> bool:
-        nonlocal usage, model, finish_reason, retained_bytes
+        nonlocal usage, model, finish_reason, retained_bytes, saw_tool_piece
         if not data_lines:
             return False
         data = "\n".join(data_lines)
@@ -1808,6 +1840,7 @@ async def _completion_stream_payload(
         if request_trace is not None:
             request_trace.observe_event()
         _observe_upstream(event)
+        require_tool_progress()
         if event.get("error"):
             raise ProviderStreamError("adjudicator stream returned a provider error")
         model = event.get("model") or model
@@ -1822,12 +1855,23 @@ async def _completion_stream_payload(
         delta = choice.get("delta") or {}
         if not isinstance(delta, dict):
             raise ValueError("adjudicator stream delta is invalid")
-        for piece in delta.get("tool_calls") or []:
+        tool_pieces = delta.get("tool_calls") or []
+        for piece in tool_pieces:
             if not isinstance(piece, dict) or not isinstance(piece.get("index"), int):
                 raise ValueError("adjudicator stream tool index is invalid")
             index = piece["index"]
             if index < 0 or index >= 32:
                 raise ValueError("adjudicator stream tool index exceeded bound")
+            fragment = piece.get("function") or {}
+            if not isinstance(fragment, dict):
+                raise ValueError("adjudicator stream function is invalid")
+            if any(
+                isinstance(fragment.get(key), str) and fragment[key].strip()
+                for key in ("name", "arguments")
+            ):
+                # An index or ID-only shell is not evidence that the model
+                # started a function call; keep the budget active for it.
+                saw_tool_piece = True
             call = calls.setdefault(index, {"type": "function", "function": {}})
             for key in ("id", "type"):
                 if key in piece:
@@ -1846,9 +1890,6 @@ async def _completion_stream_payload(
                             "adjudicator completion exceeded response bound"
                         )
                     call[key] = piece[key]
-            fragment = piece.get("function") or {}
-            if not isinstance(fragment, dict):
-                raise ValueError("adjudicator stream function is invalid")
             function = call["function"]
             if not isinstance(function, dict):
                 raise ValueError("adjudicator stream function is invalid")
@@ -1872,6 +1913,7 @@ async def _completion_stream_payload(
         return False
 
     async for line in response.aiter_lines():
+        require_tool_progress()
         total_bytes += len(line.encode("utf-8")) + 1
         if total_bytes > _MAX_COMPLETION_STREAM_BYTES:
             raise CompletionWireTooLarge(
