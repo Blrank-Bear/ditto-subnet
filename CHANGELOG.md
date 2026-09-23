@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.299.0 (2026-09-23)
+
+### Features
+
+- **backroom**: Add sealed report-only replay executor adapter
+  ([`302c9db`](https://github.com/ditto-assistant/ditto-subnet/commit/302c9dbcf39b2d22a5a838c1c3447429d58670da))
+
+
 ## v0.298.0 (2026-09-23)
 
 ### Bug Fixes
