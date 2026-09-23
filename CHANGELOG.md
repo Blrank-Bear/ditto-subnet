@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.298.0 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Retain L4 telemetry on completed refusals
+  ([`2a219ca`](https://github.com/ditto-assistant/ditto-subnet/commit/2a219ca8ffdaa98c23e1198f6bd2b506f96574c5))
+
+### Features
+
+- **infra**: Prepare independent second screener identity
+  ([#2172](https://github.com/ditto-assistant/ditto-subnet/pull/2172),
+  [`de21642`](https://github.com/ditto-assistant/ditto-subnet/commit/de2164205f2efd94064d40c00f55f49a095cbb44))
+
+- **platform**: Add report-only held-artifact replay lease
+  ([#2170](https://github.com/ditto-assistant/ditto-subnet/pull/2170),
+  [`37a3550`](https://github.com/ditto-assistant/ditto-subnet/commit/37a355053b94fea2027be50e26e28289ff5fa12d))
+
+- **platform**: Bound V13 replay lease renewals
+  ([`cd29e30`](https://github.com/ditto-assistant/ditto-subnet/commit/cd29e30c785a13aba6189b951eff5850ceaa3652))
+
+
 ## v0.297.0 (2026-09-23)
 
 ### Features
