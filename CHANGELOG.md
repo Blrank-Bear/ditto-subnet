@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.9 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Accept repeated streamed tool names
+  ([#2137](https://github.com/ditto-assistant/ditto-subnet/pull/2137),
+  [`4c88200`](https://github.com/ditto-assistant/ditto-subnet/commit/4c882003763f729cc00b6f912f71a62dc792f8a4))
+
+
 ## v0.287.8 (2026-09-23)
 
 ### Bug Fixes
