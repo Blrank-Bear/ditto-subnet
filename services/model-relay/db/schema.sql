@@ -4359,12 +4359,14 @@ CREATE TABLE public.screening_review_deadline_activations (
     reason text NOT NULL,
     actor text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    policy_document_digest text,
     CONSTRAINT ck_screening_review_deadline_activations_srda_actor_check CHECK (((length(TRIM(BOTH FROM actor)) >= 1) AND (length(TRIM(BOTH FROM actor)) <= 120))),
     CONSTRAINT ck_screening_review_deadline_activations_srda_digest_check CHECK ((length(policy_digest) = 64)),
     CONSTRAINT ck_screening_review_deadline_activations_srda_no_backdate_check CHECK ((activate_at >= created_at)),
     CONSTRAINT ck_screening_review_deadline_activations_srda_policy_check CHECK ((policy_version >= 13)),
     CONSTRAINT ck_screening_review_deadline_activations_srda_reason_check CHECK ((length(TRIM(BOTH FROM reason)) >= 8)),
-    CONSTRAINT ck_screening_review_deadline_activations_srda_window_check CHECK (((window_seconds >= 3600) AND (window_seconds <= 604800)))
+    CONSTRAINT ck_screening_review_deadline_activations_srda_window_check CHECK (((window_seconds >= 3600) AND (window_seconds <= 604800))),
+    CONSTRAINT srda_document_digest_check CHECK (((policy_document_digest IS NULL) OR (length(policy_document_digest) = 64)))
 );
 
 
