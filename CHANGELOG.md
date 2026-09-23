@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.294.0 (2026-09-23)
+
+### Features
+
+- **protocol**: Define sealed V13 private package contract
+  ([#2153](https://github.com/ditto-assistant/ditto-subnet/pull/2153),
+  [`256d252`](https://github.com/ditto-assistant/ditto-subnet/commit/256d2523ad7ff7542812bdcf09b92aa70e139f97))
+
+
 ## v0.293.0 (2026-09-23)
 
 ### Features
