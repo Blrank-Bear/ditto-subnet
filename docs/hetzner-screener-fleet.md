@@ -339,10 +339,9 @@ node-2 Terraform provider/email outputs. Keep the node at one worker and all
 five Backroom channel limits at zero on first converge. Read the live controller
 epoch, grant a single-use bootstrap capability for that exact node/resource and
 digest-pinned builder image, and let enrollment generate its own hotkey on the
-host. Platform registers new nodes as `active`, and draft replay claims do not
-consult ordinary channel limits. Do not enroll node 2 while replay work is
-queued until replay claims have a separate operator-enable or zero-capacity
-guard; zero ordinary channels alone are not a replay kill switch. Verify the
+host. Platform registers new nodes as `active`, but replay capacity defaults
+to zero and claims require a positive value. Ordinary channel limits remain
+separate from this replay admission guard. Verify the
 hotkey differs from the source attempt's hotkey, its heartbeat
 reports the intended release/policy, and isolated build and runtime lanes work
 before enabling any review lane. Apply one guarded Backroom channel revision
@@ -350,6 +349,20 @@ at a time; do not change provider routing merely to run a verification replay.
 
 The verification-replay API alone records evidence; it does not run the replay
 worker, complete private V13 checks, clear holds, or authorize emissions.
+The replay lane has a separate zero-default `verification_replay_capacity` on
+each enrolled node. Backroom's `get_screener_capacity` exposes its live value,
+and `set_screener_node_replay_capacity` may set only node 2 to zero or one with
+its current hotkey, status, capacity, and exact confirmation. A value of one
+requires a live, active node-2 enrollment on a distinct Hetzner resource and
+hotkey from node 1. Enabling also requires a fresh signed heartbeat from the
+exact node-2 worker identity with V13 policy and an activated replay-runner
+release. The minimum replay-runner release is deliberately unset in Platform
+until that runner ships, so capacity one currently fails closed. Verify worker
+adoption through `get_screener_capacity.nodes[].workers` (seen-at, policy and
+release) before enabling. The ordinary five channel limits do not control
+replay claims. Returning capacity to zero remains available when a worker or
+its release becomes stale; it stops new claims and preserves active lease and
+receipt history.
 Keep this node in shadow mode until the independent runner, exact-artifact
 binding, private metamorphic checks, and decision contract are reviewed and
 deployed. A failed or expired lease remains an unresolved hold. To roll back,
