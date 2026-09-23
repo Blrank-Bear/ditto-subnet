@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.303.1 (2026-09-23)
+
+### Bug Fixes
+
+- **platform**: Recheck v13 replay readiness before each claim
+  ([#2186](https://github.com/ditto-assistant/ditto-subnet/pull/2186),
+  [`5315b95`](https://github.com/ditto-assistant/ditto-subnet/commit/5315b95373ff74cdbac3733b5fd4ba2b287e6a40))
+
+### Chores
+
+- **tests**: Split Platform endpoint verification shard
+  ([#2195](https://github.com/ditto-assistant/ditto-subnet/pull/2195),
+  [`1199a8c`](https://github.com/ditto-assistant/ditto-subnet/commit/1199a8c642c5a32c2b8c0f0dde920ca500ffe7a9))
+
+
 ## v0.303.0 (2026-09-23)
 
 ### Features
