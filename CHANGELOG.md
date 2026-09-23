@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.302.0 (2026-09-23)
+
+### Features
+
+- **backroom**: Expose verified images for exact V13 attempts
+  ([#2189](https://github.com/ditto-assistant/ditto-subnet/pull/2189),
+  [`1ea8233`](https://github.com/ditto-assistant/ditto-subnet/commit/1ea8233c7be2c3e1d2b845ddbc633a1fd2fffd07))
+
+
 ## v0.301.0 (2026-09-23)
 
 ### Features
