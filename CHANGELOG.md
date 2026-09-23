@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.8 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Allow v13 court to hold incomplete evidence
+  ([#2136](https://github.com/ditto-assistant/ditto-subnet/pull/2136),
+  [`9ed75ac`](https://github.com/ditto-assistant/ditto-subnet/commit/9ed75ac8af38184897bef65d3a45d566e6c5d7ff))
+
+
 ## v0.287.7 (2026-09-23)
 
 ### Bug Fixes
