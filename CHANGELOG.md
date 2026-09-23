@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.0 (2026-09-23)
+
+### Features
+
+- **infra**: Add cache cleanup to Hetzner screeners
+  ([#2111](https://github.com/ditto-assistant/ditto-subnet/pull/2111),
+  [`9ab5fbe`](https://github.com/ditto-assistant/ditto-subnet/commit/9ab5fbe1604710007eba97530eb80d425c930d7e))
+
+
 ## v0.286.3 (2026-09-23)
 
 ### Bug Fixes
