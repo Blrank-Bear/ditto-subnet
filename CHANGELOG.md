@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.290.0 (2026-09-23)
+
+### Bug Fixes
+
+- **platform**: Honor node scope in screener settings status
+  ([#2146](https://github.com/ditto-assistant/ditto-subnet/pull/2146),
+  [`d84108a`](https://github.com/ditto-assistant/ditto-subnet/commit/d84108a1fc376151667d778eb2cd3a3d5b9ab5c6))
+
+- **screener**: Classify L4 completion ceiling without verdict
+  ([#2144](https://github.com/ditto-assistant/ditto-subnet/pull/2144),
+  [`246e889`](https://github.com/ditto-assistant/ditto-subnet/commit/246e889f89f43fbedceb7f318df771df7c2814f8))
+
+### Features
+
+- **screener**: Record bounded v13 runtime observations
+  ([#2145](https://github.com/ditto-assistant/ditto-subnet/pull/2145),
+  [`03b38f5`](https://github.com/ditto-assistant/ditto-subnet/commit/03b38f543db4e6bedecd7fb56f13fad56c79ad94))
+
+
 ## v0.289.0 (2026-09-23)
 
 ### Features
