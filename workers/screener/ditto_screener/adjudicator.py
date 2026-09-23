@@ -818,6 +818,33 @@ def _preload_ledger_evidence(
     return "\n".join(outputs), read_locations
 
 
+def _has_unreviewed_lead(
+    notes: Sequence[Mapping[str, object]],
+    finding: Mapping[str, object] | None,
+    read_locations: set[tuple[str, int]],
+) -> bool:
+    """A decision-only court cannot clear a concern it was never shown."""
+    leads: list[Mapping[str, object]] = [
+        note for note in notes if note.get("kind") == "concern"
+    ]
+    if isinstance(finding, Mapping):
+        evidence = finding.get("evidence")
+        if isinstance(evidence, list):
+            leads.extend(item for item in evidence if isinstance(item, Mapping))
+    for lead in leads:
+        path = lead.get("path")
+        line = lead.get("line")
+        if (
+            not isinstance(path, str)
+            or not path
+            or not isinstance(line, int)
+            or isinstance(line, bool)
+            or (path.removeprefix("./"), line) not in read_locations
+        ):
+            return True
+    return False
+
+
 def _compacted_adjudicator_messages(
     messages: list[dict[str, object]],
 ) -> list[dict[str, object]]:
@@ -908,6 +935,7 @@ class SourceReviewAdjudicator:
         decision_only = bool(notes) and (ledger_final or error_code is not None)
         preloaded_evidence = ""
         preloaded_reads: set[tuple[str, int]] = set()
+        unreviewed_concerns = False
         if not notes and error_code in _BUDGET_TERMINATED_REVIEW_CODES:
             # An upstream review consumed its discovery budget without
             # recording evidence. There is nothing for the court to decide;
@@ -924,6 +952,10 @@ class SourceReviewAdjudicator:
             preloaded_evidence, preloaded_reads = _preload_ledger_evidence(
                 repository, notes
             )
+            # The ledger can retain 48 notes but the one-turn court preloads
+            # only 16 distinct locations. A later concern must not disappear
+            # behind that bound while an earlier excerpt supports a CLEAR.
+            unreviewed_concerns = _has_unreviewed_lead(notes, finding, preloaded_reads)
             if not preloaded_evidence:
                 # The upstream layers retained a ledger but no usable source
                 # evidence. There is nothing for a court to decide; do not
@@ -992,6 +1024,7 @@ class SourceReviewAdjudicator:
                 read_locations=read_locations,
                 notes=note_count,
                 policy_version=policy_version,
+                unreviewed_concerns=unreviewed_concerns,
             )
         finally:
             _run_trace.reset(token)
@@ -1063,6 +1096,7 @@ class SourceReviewAdjudicator:
         read_locations: set[tuple[str, int]],
         notes: int,
         policy_version: int,
+        unreviewed_concerns: bool = False,
     ) -> SourceReviewAdjudication:
         """Refuse any decision the host cannot verify against the archive.
 
@@ -1074,6 +1108,15 @@ class SourceReviewAdjudicator:
             return _escalate(
                 "uncited-decision",
                 "Automated adjudication cited no source; held for operator review",
+                model=self._model,
+                notes=notes,
+                policy_version=policy_version,
+            )
+        if verdict.decision == "clear" and unreviewed_concerns:
+            return _escalate(
+                "adjudicator-evidence-incomplete",
+                "Automated adjudication did not receive every retained source "
+                "lead; held for operator review",
                 model=self._model,
                 notes=notes,
                 policy_version=policy_version,
