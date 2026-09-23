@@ -11,7 +11,11 @@ import { entityHref } from "../../lib/router";
 import { pushEntityRoute } from "../../stores/routeStore";
 import { HandleBadge } from "../ui/HandleBadge";
 import { MinerAvatar } from "../ui/MinerAvatar";
-import { policyScreeningLabel } from "../pipeline/status";
+import {
+  isSourceReviewIncomplete,
+  policyScreeningLabel,
+  SOURCE_REVIEW_INCOMPLETE_NOTE,
+} from "../pipeline/status";
 import type { FleetReport } from "../../types/fleet";
 import type { CodingShadowScore } from "../../types/leaderboard";
 import type { BenchmarkProgress } from "../../types/pipeline";
@@ -616,7 +620,7 @@ export function IntegrityReviewBranch(props: {
         <span>
           <span class="pipeline-review-eyebrow">Conditional after scoring</span>
           <strong class="pipeline-review-title" id="pipeline-review-title">
-            Source integrity review
+            Deferred source review
           </strong>
         </span>
         <span class="pipeline-review-count" id="pipeline-review-count">
@@ -624,8 +628,9 @@ export function IntegrityReviewBranch(props: {
         </span>
       </summary>
       <p class="pipeline-review-copy">
-        Only leaderboard qualifiers and robust anomaly holds enter this branch. Other admitted
-        submissions go directly through validator scoring.
+        Only leaderboard qualifiers and robust anomaly holds enter this branch. A hold is neutral
+        when the automated review only ran out of budget before finishing; the row says so. Other
+        admitted submissions go directly through validator scoring.
       </p>
       <div class="pipeline-review-items" id="pipeline-review-items">
         <Show
@@ -636,7 +641,9 @@ export function IntegrityReviewBranch(props: {
             <Show
               when={shown().length > 0}
               fallback={
-                <div class="pipeline-empty">No submissions are held for integrity review.</div>
+                <div class="pipeline-empty">
+                  No submissions are held for deferred source review.
+                </div>
               }
             >
               <For each={shown()}>
@@ -651,7 +658,7 @@ export function IntegrityReviewBranch(props: {
                       agentName(item.entry.name) +
                       ", " +
                       agentVersionLabel(item.entry.version) +
-                      " integrity review details"
+                      " deferred source review details"
                     }
                     onClick={(ev) => cardClick(ev, String(item.entry.agent_id || ""))}
                   >
@@ -672,6 +679,11 @@ export function IntegrityReviewBranch(props: {
                     <span class="pipeline-item-priority-detail">
                       {integrityReviewReason(item.entry)}
                     </span>
+                    <Show when={isSourceReviewIncomplete(item.entry)}>
+                      <span class="pipeline-item-priority-detail">
+                        {SOURCE_REVIEW_INCOMPLETE_NOTE}
+                      </span>
+                    </Show>
                   </a>
                 )}
               </For>
