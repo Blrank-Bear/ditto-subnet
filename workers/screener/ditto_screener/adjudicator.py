@@ -69,6 +69,54 @@ logger = logging.getLogger(__name__)
 
 _ERROR_CLASS_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,63}$")
 _PROVIDER_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+
+
+def _clear_upstream() -> None:
+    """Forget the previous request's upstream before issuing the next one.
+
+    A failure with no readable response must leave the upstream unknown rather
+    than inherit the last one that answered.
+    """
+    trace = _run_trace.get()
+    if trace is not None:
+        trace.upstream = None
+
+
+def _observe_upstream(payload: object) -> None:
+    """Record which upstream served this response, if it named one.
+
+    Read before anything that can reject the body, because a provider fault
+    relayed inside an HTTP 200 is exactly the failure worth attributing to an
+    upstream.
+
+    The trace spans a whole court run, so :func:`_clear_upstream` empties this
+    at the start of every request and retry. Without that, a step that answered
+    from one upstream would still be named when a later step times out with no
+    response at all, which blames an upstream for a call it never served.
+    """
+    trace = _run_trace.get()
+    if trace is None or not isinstance(payload, dict):
+        return
+    upstream = _upstream_slug(payload.get("provider"))
+    if upstream is not None:
+        trace.upstream = upstream
+
+
+def _upstream_slug(value: object) -> str | None:
+    """Normalize the serving upstream's name, or ``None`` when it is unusable.
+
+    The gateway reports names like ``Sail Research`` and ``Io Net``. Lowercase
+    them and join the words so the value fits the same bounded slug every other
+    identifier in this trace uses; anything that still does not fit is dropped
+    rather than stored, because this string comes back from a provider response
+    and only ever needs to be recognizable, never verbatim.
+    """
+    if not isinstance(value, str):
+        return None
+    slug = "-".join(value.strip().lower().split())
+    return slug if _PROVIDER_RE.fullmatch(slug) else None
+
+
 _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$")
 _RunStage = Literal["completion", "lease", "step-budget", "unavailable", "response"]
 
@@ -82,6 +130,7 @@ class _RunTrace:
     completion_tokens: int | None = None
     final_tool_call_returned: bool | None = None
     http_status: int | None = None
+    upstream: str | None = None
 
 
 _run_trace: contextvars.ContextVar[_RunTrace | None] = contextvars.ContextVar(
@@ -556,6 +605,7 @@ def _observe_completion(payload: object) -> None:
 
     Metadata only. Model text, tool arguments, and prompts are not stored.
     """
+    _observe_upstream(payload)
     trace = _run_trace.get()
     if trace is None or not isinstance(payload, dict):
         return
@@ -848,8 +898,9 @@ class SourceReviewAdjudicator:
                 # Class and stage only. Exception text can echo a prompt or
                 # provider body, so it stays out of the persisted diagnostic.
                 logger.warning(
-                    "adjudication failed model=%s cause=%s stage=%s",
+                    "adjudication failed model=%s upstream=%s cause=%s stage=%s",
                     self._model,
+                    trace.upstream,
                     type(error).__name__,
                     _failure_stage(error),
                 )
@@ -926,6 +977,7 @@ class SourceReviewAdjudicator:
                 final_tool_call_returned=trace.final_tool_call_returned,
                 model=model,
                 provider=provider,
+                upstream=trace.upstream,
             )
         except ValidationError:
             logger.warning(
@@ -1199,6 +1251,7 @@ class SourceReviewAdjudicator:
             _MAX_COMPLETION_REQUEST_SECONDS,
         )
         for attempt in range(_MAX_COMPLETION_REQUEST_ATTEMPTS):
+            _clear_upstream()
             try:
                 async with asyncio.timeout(effective_timeout):
                     response = await client.post(
@@ -1230,6 +1283,7 @@ class SourceReviewAdjudicator:
                 trace.http_status = response.status_code
             response.raise_for_status()
         payload: object = response.json()
+        _observe_upstream(payload)
         if _retryable_model_error_type(payload) is not None:
             raise ValueError("adjudicator model body was unusable")
         return _assistant_message(payload)

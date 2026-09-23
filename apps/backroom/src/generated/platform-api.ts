@@ -6773,6 +6773,8 @@ export interface components {
             provider?: string | null;
             /** Timeout Stage */
             timeout_stage?: ("completion" | "lease" | "step-budget" | "unavailable" | "response") | null;
+            /** Upstream */
+            upstream?: string | null;
         };
         /** AdminActiveContractRequest */
         AdminActiveContractRequest: {
