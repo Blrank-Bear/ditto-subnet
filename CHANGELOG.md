@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.289.0 (2026-09-23)
+
+### Features
+
+- **screener**: Record exact v13 mechanical verification receipts
+  ([#2142](https://github.com/ditto-assistant/ditto-subnet/pull/2142),
+  [`ccf9b91`](https://github.com/ditto-assistant/ditto-subnet/commit/ccf9b9195299de8fd85b9c5d9d0e312cc546a40d))
+
+
 ## v0.288.0 (2026-09-23)
 
 ### Bug Fixes
