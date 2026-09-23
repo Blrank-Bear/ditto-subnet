@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.287.7 (2026-09-23)
+
+### Bug Fixes
+
+- **screener**: Distinguish adjudicator wire and tool bounds
+  ([#2135](https://github.com/ditto-assistant/ditto-subnet/pull/2135),
+  [`a098474`](https://github.com/ditto-assistant/ditto-subnet/commit/a09847496c18840233748a43053b5205d250e235))
+
+
 ## v0.287.6 (2026-09-23)
 
 ### Bug Fixes
