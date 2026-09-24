@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.309.0 (2026-09-24)
+
+### Features
+
+- **backroom**: Expose guarded V13 replay process controls
+  ([#2196](https://github.com/ditto-assistant/ditto-subnet/pull/2196),
+  [`77e01f8`](https://github.com/ditto-assistant/ditto-subnet/commit/77e01f8087cfe5901b696d8d871d01e5cc64e046))
+
+- **platform**: Bind V13 replay leases to registered process keys
+  ([#2194](https://github.com/ditto-assistant/ditto-subnet/pull/2194),
+  [`3d42b61`](https://github.com/ditto-assistant/ditto-subnet/commit/3d42b615f1331fd872e384ff527a5b507e41581c))
+
+- **platform**: Verify v13 replay process proofs
+  ([#2192](https://github.com/ditto-assistant/ditto-subnet/pull/2192),
+  [`72173ba`](https://github.com/ditto-assistant/ditto-subnet/commit/72173ba2425a3166f0d6cb737beaffb552c92d58))
+
+- **screening**: Define v13 replay process proof contract
+  ([#2190](https://github.com/ditto-assistant/ditto-subnet/pull/2190),
+  [`30ea10b`](https://github.com/ditto-assistant/ditto-subnet/commit/30ea10bbd6c66a8e29d74c0611b086929ba27866))
+
+
 ## v0.308.1 (2026-09-24)
 
 ### Bug Fixes
