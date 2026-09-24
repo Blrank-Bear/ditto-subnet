@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.307.0 (2026-09-24)
+
+### Features
+
+- **platform**: Publish benchmark rollout promotion progress
+  ([#2108](https://github.com/ditto-assistant/ditto-subnet/pull/2108),
+  [`e664368`](https://github.com/ditto-assistant/ditto-subnet/commit/e664368970c847750ada739a8e4791a91dd098c0))
+
+- **platform**: Record immutable screening review events
+  ([#2217](https://github.com/ditto-assistant/ditto-subnet/pull/2217),
+  [`a61a5fa`](https://github.com/ditto-assistant/ditto-subnet/commit/a61a5fa393fc9e06bad9692abbde72b777e9d721))
+
+
 ## v0.306.3 (2026-09-24)
 
 ### Bug Fixes
