@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.306.1 (2026-09-24)
+
+### Bug Fixes
+
+- **screener**: Prioritize court concern evidence
+  ([#2162](https://github.com/ditto-assistant/ditto-subnet/pull/2162),
+  [`0e140f5`](https://github.com/ditto-assistant/ditto-subnet/commit/0e140f5e3145f26aedb4714238a7b432bf196b7e))
+
+
 ## v0.306.0 (2026-09-24)
 
 ### Bug Fixes
