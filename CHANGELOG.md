@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.311.0 (2026-09-24)
+
+### Features
+
+- **platform**: Pin v13 scorer cohort for signed L2 leases
+  ([#2266](https://github.com/ditto-assistant/ditto-subnet/pull/2266),
+  [`f173785`](https://github.com/ditto-assistant/ditto-subnet/commit/f1737858e574089c1e561c1e870997688d99e6a9))
+
+- **screener**: Add isolated L2 report canary queue
+  ([#2265](https://github.com/ditto-assistant/ditto-subnet/pull/2265),
+  [`28b0736`](https://github.com/ditto-assistant/ditto-subnet/commit/28b07367d8bf98333b1a48494c857367aee8cda1))
+
+
 ## v0.310.1 (2026-09-24)
 
 ### Bug Fixes
