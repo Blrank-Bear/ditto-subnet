@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.304.1 (2026-09-24)
+
+### Bug Fixes
+
+- **platform**: Make screened image upload initiation idempotent
+  ([#2198](https://github.com/ditto-assistant/ditto-subnet/pull/2198),
+  [`c65f8a6`](https://github.com/ditto-assistant/ditto-subnet/commit/c65f8a6849e3db4da6d2d47a049575cfe54cf4b5))
+
+
 ## v0.304.0 (2026-09-24)
 
 ### Bug Fixes
