@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.307.1 (2026-09-24)
+
+### Bug Fixes
+
+- **screener**: Bound L4 review with v13 evidence fence
+  ([#2166](https://github.com/ditto-assistant/ditto-subnet/pull/2166),
+  [`1b589b3`](https://github.com/ditto-assistant/ditto-subnet/commit/1b589b351a9428c409765b0cbf963127c6ad7e8f))
+
+- **screener**: Require scored I6 endpoint proof in L4
+  ([#2233](https://github.com/ditto-assistant/ditto-subnet/pull/2233),
+  [`98c0d82`](https://github.com/ditto-assistant/ditto-subnet/commit/98c0d8265de1edcdc3ae6a31c97bae0606582169))
+
+### Chores
+
+- **tests**: Pin screener negative control boundaries
+  ([#2232](https://github.com/ditto-assistant/ditto-subnet/pull/2232),
+  [`4e2ccb1`](https://github.com/ditto-assistant/ditto-subnet/commit/4e2ccb191c9106eab6bb8ba392aeaec3c75cfd66))
+
+
 ## v0.307.0 (2026-09-24)
 
 ### Features
