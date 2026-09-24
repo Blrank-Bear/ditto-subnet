@@ -2,6 +2,49 @@
 
 <!-- version list -->
 
+## v0.308.0 (2026-09-24)
+
+### Bug Fixes
+
+- **platform**: Avoid duplicate migration sweep statuses
+  ([#2215](https://github.com/ditto-assistant/ditto-subnet/pull/2215),
+  [`211ff33`](https://github.com/ditto-assistant/ditto-subnet/commit/211ff33b97081e8e8d8a9726f82864612a9976f7))
+
+- **screener**: Admit failed source reviews to v13 replay
+  ([#2254](https://github.com/ditto-assistant/ditto-subnet/pull/2254),
+  [`730d7eb`](https://github.com/ditto-assistant/ditto-subnet/commit/730d7eb53ce5378b2749152f53a7536d62c1ceb2))
+
+### Features
+
+- **backroom**: Expose v13 private provenance controls
+  ([#2249](https://github.com/ditto-assistant/ditto-subnet/pull/2249),
+  [`f396629`](https://github.com/ditto-assistant/ditto-subnet/commit/f3966299ace40f86893c42c5433b2c3ab4b6da27))
+
+- **platform**: Bind v13 private generation to replay images
+  ([#2238](https://github.com/ditto-assistant/ditto-subnet/pull/2238),
+  [`ec8940e`](https://github.com/ditto-assistant/ditto-subnet/commit/ec8940efa8923dee993c20f890e63dcc336ba1b1))
+
+- **platform**: Report conservative v13 private statistics
+  ([#2244](https://github.com/ditto-assistant/ditto-subnet/pull/2244),
+  [`963c8fb`](https://github.com/ditto-assistant/ditto-subnet/commit/963c8fbd16f121c7244265cce9b95546ef3ec780))
+
+- **screener**: Cap matched v13 private replay spending
+  ([#2245](https://github.com/ditto-assistant/ditto-subnet/pull/2245),
+  [`a589090`](https://github.com/ditto-assistant/ditto-subnet/commit/a589090f006d5784cb63a6cad8247e93e2647666))
+
+- **screener**: Execute replay-bound v13 private cases with signed reports
+  ([#2243](https://github.com/ditto-assistant/ditto-subnet/pull/2243),
+  [`539b475`](https://github.com/ditto-assistant/ditto-subnet/commit/539b4753e025ab49061aa822c295ecac1d16db5a))
+
+- **screener**: Record signed v13 replay observations
+  ([#2235](https://github.com/ditto-assistant/ditto-subnet/pull/2235),
+  [`56604a7`](https://github.com/ditto-assistant/ditto-subnet/commit/56604a7132362da99214caf7fbd0f12a92b1870c))
+
+- **screener**: Verify replay image tar identity
+  ([#2236](https://github.com/ditto-assistant/ditto-subnet/pull/2236),
+  [`f2f1bd5`](https://github.com/ditto-assistant/ditto-subnet/commit/f2f1bd56528b4ebd4cae7a6085175aa64a7ef533))
+
+
 ## v0.307.7 (2026-09-24)
 
 ### Bug Fixes
