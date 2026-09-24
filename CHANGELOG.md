@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.310.0 (2026-09-24)
+
+### Bug Fixes
+
+- **platform**: Pin first released replay runner
+  ([#2262](https://github.com/ditto-assistant/ditto-subnet/pull/2262),
+  [`bfacdf4`](https://github.com/ditto-assistant/ditto-subnet/commit/bfacdf4e657979858a9f657bf4fb19588e1b007e))
+
+### Features
+
+- Wire independent screener replay host unit
+  ([#2261](https://github.com/ditto-assistant/ditto-subnet/pull/2261),
+  [`218f32c`](https://github.com/ditto-assistant/ditto-subnet/commit/218f32c163ed4af3a697ea265fb76d60c3877988))
+
+
 ## v0.309.0 (2026-09-24)
 
 ### Features
