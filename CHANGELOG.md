@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.306.3 (2026-09-24)
+
+### Bug Fixes
+
+- **validator**: Resolve burn target from registered owner
+  ([#2205](https://github.com/ditto-assistant/ditto-subnet/pull/2205),
+  [`bbbefb9`](https://github.com/ditto-assistant/ditto-subnet/commit/bbbefb9bf149324ad65f28316bb233a9d514a363))
+
+
 ## v0.306.2 (2026-09-24)
 
 ### Bug Fixes
