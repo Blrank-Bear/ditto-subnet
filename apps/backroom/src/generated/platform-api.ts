@@ -3198,6 +3198,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/v13-scorer-cohort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Pin */
+        get: operations["get_pin_api_v1_admin_v13_scorer_cohort_get"];
+        put?: never;
+        /** Activate Pin */
+        post: operations["activate_pin_api_v1_admin_v13_scorer_cohort_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/v13-scorer-cohort/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Preflight
+         * @description Read the exact current packet and drain state for activation planning.
+         */
+        get: operations["get_preflight_api_v1_admin_v13_scorer_cohort_preflight_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/v9-contract-retests": {
         parameters: {
             query?: never;
@@ -7540,6 +7578,26 @@ export interface components {
              * @constant
              */
             upstream_requests: 0;
+        };
+        /** ActivateV13ScorerCohortRequest */
+        ActivateV13ScorerCohortRequest: {
+            /** Actor */
+            actor: string;
+            /** Confirmation */
+            confirmation: string;
+            /** Expected Slot Settings Checksum */
+            expected_slot_settings_checksum: string;
+            /** Expected Slot Settings Revision */
+            expected_slot_settings_revision: number;
+            /** Hotkeys */
+            hotkeys: [
+                string,
+                string,
+                string
+            ];
+            packet: components["schemas"]["V13ScorerPacket"];
+            /** Reason */
+            reason: string;
         };
         /**
          * ActiveBenchmarkSlot
@@ -32028,6 +32086,68 @@ export interface components {
             /** Revisions */
             revisions: components["schemas"]["V13ReviewClockRevision"][];
         };
+        /** V13ScorerCohortView */
+        V13ScorerCohortView: {
+            /** Actor */
+            actor: string;
+            /** Bench Version */
+            bench_version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Hotkeys */
+            hotkeys: string[];
+            packet: components["schemas"]["V13ScorerPacket"];
+            /** Reason */
+            reason: string;
+            /** Slot Settings Checksum */
+            slot_settings_checksum: string;
+            /** Slot Settings Revision */
+            slot_settings_revision: number;
+        };
+        /** V13ScorerPacket */
+        V13ScorerPacket: {
+            /** Injected Keys */
+            injected_keys: string[];
+            /** Release Descriptor Digest */
+            release_descriptor_digest: string;
+            /** Scorer Env Sha256 */
+            scorer_env_sha256: string;
+            /** Scorer Image Digest */
+            scorer_image_digest: string;
+            /** Source Revision */
+            source_revision: string;
+        };
+        /** V13ScorerPreflight */
+        V13ScorerPreflight: {
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Slot Settings Checksum */
+            slot_settings_checksum: string | null;
+            /** Slot Settings Revision */
+            slot_settings_revision: number | null;
+            /** Validators */
+            validators: components["schemas"]["V13ScorerPreflightValidator"][];
+        };
+        /** V13ScorerPreflightValidator */
+        V13ScorerPreflightValidator: {
+            /** Accepting */
+            accepting: boolean;
+            /** Capable */
+            capable: boolean;
+            /** Hotkey */
+            hotkey: string;
+            /** Live V13 Tickets */
+            live_v13_tickets: number;
+            packet: components["schemas"]["V13ScorerPacket"] | null;
+            /** Paused */
+            paused: boolean;
+        };
         /** V7InferenceCalibration */
         V7InferenceCalibration: {
             /** Manifest Sha256 */
@@ -39799,6 +39919,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["V13ReplayGroupPackageView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pin_api_v1_admin_v13_scorer_cohort_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V13ScorerCohortView"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_pin_api_v1_admin_v13_scorer_cohort_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateV13ScorerCohortRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V13ScorerCohortView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_preflight_api_v1_admin_v13_scorer_cohort_preflight_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V13ScorerPreflight"];
                 };
             };
             /** @description Validation Error */

@@ -125,6 +125,9 @@ from ditto.api_server.endpoints.admin_traces import (
 from ditto.api_server.endpoints.admin_v13_private_generation import (
     router as admin_v13_private_generation_router,
 )
+from ditto.api_server.endpoints.admin_v13_scorer_cohort import (
+    router as admin_v13_scorer_cohort_router,
+)
 from ditto.api_server.endpoints.admin_validation_retry import (
     router as admin_validation_retry_router,
 )
@@ -241,6 +244,7 @@ __all__ = [
     "admin_submission_deposit_address_router",
     "admin_validation_retry_router",
     "admin_validator_slot_settings_router",
+    "admin_v13_scorer_cohort_router",
     "metrics_router",
     "miner_auth_router",
     "miner_avatars_router",
