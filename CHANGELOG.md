@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.310.1 (2026-09-24)
+
+### Bug Fixes
+
+- **screener**: Bind L2 to signed scorer cohort evidence
+  ([#2259](https://github.com/ditto-assistant/ditto-subnet/pull/2259),
+  [`e505595`](https://github.com/ditto-assistant/ditto-subnet/commit/e5055957c8c65e824f64d90cee66074d3db73afd))
+
+
 ## v0.310.0 (2026-09-24)
 
 ### Bug Fixes
