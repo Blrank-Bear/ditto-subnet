@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.307.3 (2026-09-24)
+
+### Bug Fixes
+
+- **screener**: Accept configured source review step budgets
+  ([#2247](https://github.com/ditto-assistant/ditto-subnet/pull/2247),
+  [`a2e9eb7`](https://github.com/ditto-assistant/ditto-subnet/commit/a2e9eb761c0f022ee7626a4d70d779c16f718400))
+
+
 ## v0.307.2 (2026-09-24)
 
 ### Bug Fixes
