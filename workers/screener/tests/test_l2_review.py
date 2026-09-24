@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,7 @@ from ditto_screener.policy import SourceReviewObservation
 from ditto_screener.source_review import TarSourceRepository
 from ditto_screening_protocol import (
     SCREENING_POLICY_VERSION,
+    ScoredRuntimeEvidenceLease,
     ScreenReviewAudit,
     SourceReviewAdjudication,
     SourceReviewCitation,
@@ -208,7 +210,7 @@ def test_starter_provenance_generator_ignores_untracked_build_outputs(
 def test_causal_basis_prefers_reconstructed_generator_over_downstream_effects() -> None:
     assert l2_prompt_revision(11) == "l2-terra-source-review-v37-policy-v11"
     assert l2_prompt_revision(10) == "l2-terra-source-review-v37-policy-v10"
-    assert L2_DOSSIER_REVISION == "l1-compressed-dossier-v10"
+    assert L2_DOSSIER_REVISION == "l1-compressed-dossier-v11"
     assert l2_cause_prompt_revision(11) == "l3-sol-violation-cause-v27-policy-v11"
     assert l2_cause_tiebreaker_prompt_revision(11) == (
         "l3-sol-cause-disagreement-v7-policy-v11"
@@ -406,7 +408,7 @@ def test_l2_policy_v13_prompt_adds_i8_and_authority_boundaries() -> None:
     assert "`bench_version` activating learned routing" in v13
     assert "exact path-and-digest provenance" in v13
     assert "null compact score field" in v13
-    assert l2_prompt_revision(13) == "l2-terra-source-review-v38-policy-v13"
+    assert l2_prompt_revision(13) == "l2-terra-source-review-v39-policy-v13"
 
     legacy = _l2_tools_for_policy(12)[-1]["parameters"]["properties"]["invariants"]
     current = _l2_tools_for_policy(13)[-1]["parameters"]["properties"]["invariants"]
@@ -737,6 +739,7 @@ class _FakeL1:
 class _FakeL2:
     def __init__(self, result: L2RunResult) -> None:
         self.result = result
+        self._require_signed_runtime_lease = False
         self.calls = 0
         self.deadline: float | None = None
 
@@ -749,6 +752,47 @@ class _FakeL2:
         if on_l3_start is not None:
             on_l3_start()
         return self.result
+
+
+async def test_required_lease_holds_before_l1_or_l4_can_clear() -> None:
+    l1 = _FakeL1(_l1("low", clearance_certified=True))
+    l2 = _FakeL2(_model_result(_safe()))
+    l2._require_signed_runtime_lease = True
+    layered = LayeredSourceReviewAgent(l1=l1, l2=l2, mode="enforce")  # type: ignore[arg-type]
+
+    result = await layered.review(
+        "unused",
+        artifact_sha256="c" * 64,
+        attempt_id=ATTEMPT,
+        scored_runtime_evidence=None,
+    )
+
+    assert result.error_code == "l2-runtime-evidence-unavailable"
+    assert result.failure_disposition == "pass_inconclusive"
+    assert l1.calls == 0
+    assert l2.calls == 0
+
+
+async def test_required_lease_shadow_records_hold_without_applying_it(
+    tmp_path: Path,
+) -> None:
+    l1 = _FakeL1(_l1("low", clearance_certified=True))
+    l2 = _sol_agent(tmp_path, _FakeHarness(), lambda _request: None)
+    l2._require_signed_runtime_lease = True
+    layered = LayeredSourceReviewAgent(l1=l1, l2=l2, mode="shadow")  # type: ignore[arg-type]
+
+    result = await layered.review(
+        "unused",
+        artifact_sha256="ab" * 32,
+        attempt_id=ATTEMPT,
+        scored_runtime_evidence=None,
+    )
+
+    assert result is l1.result
+    shadow = layered.pop_shadow_result(ATTEMPT)
+    assert shadow is not None
+    assert shadow.observation.error_code == "l2-runtime-evidence-unavailable"
+    assert shadow.observation.failure_disposition == "pass_inconclusive"
 
 
 async def test_clean_l1_skips_sol() -> None:
@@ -2036,6 +2080,196 @@ def test_l2_audit_accepts_aggregate_input_usage_across_roles() -> None:
         ScreenReviewAudit.model_validate(
             {**audit.model_dump(), "input_tokens_used": 20_000_001}
         )
+
+
+async def test_configured_runtime_evidence_mismatch_holds_before_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _sol_agent(tmp_path, _FakeHarness(), lambda _request: None)
+    agent._scorer_capabilities_url = "https://scorer.example/v1/capabilities"
+    agent._expected_scorer_revision = "a" * 40
+    agent._scorer_transport = httpx.MockTransport(
+        lambda _request: httpx.Response(
+            200,
+            json={
+                "source_revision": "b" * 40,
+                "source_revision_origin": "binary",
+                "source_revision_mismatch": False,
+            },
+        )
+    )
+
+    async def must_not_run(*_args: object, **_kwargs: object) -> L2RunResult:
+        raise AssertionError("model must not run with mismatched scorer evidence")
+
+    monkeypatch.setattr(agent, "_review_uncached", must_not_run)
+    result = await agent.review(
+        str(tmp_path / "unused.tar"),
+        artifact_sha256="ab" * 32,
+        attempt_id=ATTEMPT,
+        l1_observation=_l1(),
+        deadline=None,
+    )
+    assert result.observation.error_code == "l2-runtime-evidence-unavailable"
+    assert result.observation.failure_disposition == "pass_inconclusive"
+
+
+async def test_verified_runtime_evidence_reaches_review_and_separates_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _sol_agent(tmp_path, _FakeHarness(), lambda _request: None)
+    revision = "a" * 40
+    keys = ["DITTOBENCH_DB", "DITTOBENCH_MODEL"]
+    material = "scored-runtime-env-v1\n13\n" + revision + "\n" + "\n".join(keys)
+    digest = hashlib.sha256(material.encode()).hexdigest()
+    agent._scorer_capabilities_url = "https://scorer.example/v1/capabilities"
+    agent._expected_scorer_revision = revision
+    agent._scorer_transport = httpx.MockTransport(
+        lambda _request: httpx.Response(
+            200,
+            json={
+                "source_revision": revision,
+                "source_revision_origin": "binary",
+                "source_revision_mismatch": False,
+                "scored_runtime_env": {
+                    "bench_version": 13,
+                    "scope": "scorer-injected-env-only",
+                    "source_revision": revision,
+                    "injected_keys": keys,
+                    "sha256": digest,
+                },
+            },
+        )
+    )
+    seen: list[object] = []
+
+    async def capture(*_args: object, **kwargs: object) -> L2RunResult:
+        seen.append(kwargs["runtime_evidence"])
+        return L2RunResult(
+            observation=l2_review._failure("l2-model-inconclusive", "inconclusive"),
+            analyzed_files=(),
+            causal_path=(),
+            tools=(),
+            usage=L2Usage(),
+            cache_hit=False,
+        )
+
+    monkeypatch.setattr(agent, "_review_uncached", capture)
+    observation = _l1()
+    result = await agent.review(
+        str(tmp_path / "unused.tar"),
+        artifact_sha256="ab" * 32,
+        attempt_id=ATTEMPT,
+        l1_observation=observation,
+        deadline=None,
+    )
+    assert result.observation.error_code == "l2-model-inconclusive"
+    assert seen and isinstance(seen[0], dict) and seen[0]["sha256"] == digest
+
+    assert agent._cache_key("ab" * 32, observation, runtime_evidence_digest=digest) != (
+        agent._cache_key("ab" * 32, observation)
+    )
+
+
+async def test_signed_lease_must_match_exact_attempt_and_artifact_before_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _sol_agent(tmp_path, _FakeHarness(), lambda _request: None)
+    revision = "a" * 40
+    keys = ("DITTOBENCH_DB", "DITTOBENCH_MODEL")
+    material = "scored-runtime-env-v1\n13\n" + revision + "\n" + "\n".join(keys)
+    digest = hashlib.sha256(material.encode()).hexdigest()
+    lease = ScoredRuntimeEvidenceLease(
+        attempt_id=ATTEMPT,
+        artifact_sha256="ab" * 32,
+        policy_version=13,
+        bench_version=13,
+        scorer_source_revision=revision,
+        release_descriptor_digest="sha256:" + "d" * 64,
+        scorer_image_digest="sha256:" + "e" * 64,
+        scorer_env_sha256=digest,
+        injected_keys=keys,
+        validator_count=2,
+        observed_at=int(time.time()),
+    )
+    seen: list[object] = []
+
+    async def capture(*_args: object, **kwargs: object) -> L2RunResult:
+        seen.append(kwargs["runtime_evidence"])
+        return L2RunResult(
+            observation=l2_review._failure("l2-model-inconclusive", "inconclusive"),
+            analyzed_files=(),
+            causal_path=(),
+            tools=(),
+            usage=L2Usage(),
+            cache_hit=False,
+        )
+
+    monkeypatch.setattr(agent, "_review_uncached", capture)
+    result = await agent.review(
+        str(tmp_path / "unused.tar"),
+        artifact_sha256="ab" * 32,
+        attempt_id=ATTEMPT,
+        l1_observation=_l1(),
+        deadline=None,
+        scored_runtime_evidence=lease,
+    )
+    assert result.observation.error_code == "l2-model-inconclusive"
+    assert seen and isinstance(seen[0], dict) and seen[0]["sha256"] == digest
+
+    different_image = lease.model_copy(
+        update={"scorer_image_digest": "sha256:" + "c" * 64}
+    )
+    await agent.review(
+        str(tmp_path / "unused.tar"),
+        artifact_sha256="ab" * 32,
+        attempt_id=ATTEMPT,
+        l1_observation=_l1(),
+        deadline=None,
+        scored_runtime_evidence=different_image,
+    )
+    assert len(seen) == 2
+
+    for wrong in (
+        lease.model_copy(update={"attempt_id": UUID(int=1)}),
+        lease.model_copy(update={"artifact_sha256": "cd" * 32}),
+        lease.model_copy(update={"observed_at": int(time.time()) - 301}),
+    ):
+        result = await agent.review(
+            str(tmp_path / "unused.tar"),
+            artifact_sha256="ab" * 32,
+            attempt_id=ATTEMPT,
+            l1_observation=_l1(),
+            deadline=None,
+            scored_runtime_evidence=wrong,
+        )
+        assert result.observation.error_code == "l2-runtime-evidence-unavailable"
+        assert result.observation.failure_disposition == "pass_inconclusive"
+    assert len(seen) == 2
+
+
+async def test_required_signed_lease_absence_holds_before_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _sol_agent(tmp_path, _FakeHarness(), lambda _request: None)
+    agent._require_signed_runtime_lease = True
+    assert agent._scorer_capabilities_url is None
+    assert agent._expected_scorer_revision is None
+
+    async def must_not_run(*_args: object, **_kwargs: object) -> L2RunResult:
+        raise AssertionError("model must not run without the signed lease")
+
+    monkeypatch.setattr(agent, "_review_uncached", must_not_run)
+    result = await agent.review(
+        str(tmp_path / "unused.tar"),
+        artifact_sha256="ab" * 32,
+        attempt_id=ATTEMPT,
+        l1_observation=_l1(),
+        deadline=None,
+        scored_runtime_evidence=None,
+    )
+    assert result.observation.error_code == "l2-runtime-evidence-unavailable"
+    assert result.observation.failure_disposition == "pass_inconclusive"
 
 
 async def test_terminal_l2_model_inconclusive_carries_bounded_signed_audit(
