@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.307.4 (2026-09-24)
+
+### Bug Fixes
+
+- **platform**: Acknowledge disputes after exact rescreen pass
+  ([#2248](https://github.com/ditto-assistant/ditto-subnet/pull/2248),
+  [`6f3f19a`](https://github.com/ditto-assistant/ditto-subnet/commit/6f3f19a3204d3884111a9e036a09969472e5e292))
+
+- **platform**: Remove the no-op AuthPassThroughMiddleware from the Platform and relay stacks
+  ([#2241](https://github.com/ditto-assistant/ditto-subnet/pull/2241),
+  [`5d9ae35`](https://github.com/ditto-assistant/ditto-subnet/commit/5d9ae3580bde1d4aea8639525f7b843ce6b6ccfa))
+
+- **screener**: Pin the Packer googlecompute plugin to an exact reviewed version
+  ([#2240](https://github.com/ditto-assistant/ditto-subnet/pull/2240),
+  [`32d37a4`](https://github.com/ditto-assistant/ditto-subnet/commit/32d37a46849c23dafa033280daa3144d015e7c57))
+
+- **screener**: Retain bounded L2 failure diagnostics
+  ([#2250](https://github.com/ditto-assistant/ditto-subnet/pull/2250),
+  [`249e512`](https://github.com/ditto-assistant/ditto-subnet/commit/249e512ca04f6f6a4d0ee94b4603cc7ef87a95a1))
+
+
 ## v0.307.3 (2026-09-24)
 
 ### Bug Fixes
