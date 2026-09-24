@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.1 (2026-09-24)
+
+### Bug Fixes
+
+- **backroom**: Expose guarded validator issuance pause in MCP
+  ([#2268](https://github.com/ditto-assistant/ditto-subnet/pull/2268),
+  [`5b121de`](https://github.com/ditto-assistant/ditto-subnet/commit/5b121de573aa932790f4f8fd4beb0825d99836ef))
+
+
 ## v0.311.0 (2026-09-24)
 
 ### Features
