@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.307.6 (2026-09-24)
+
+### Bug Fixes
+
+- **dashboard**: Label incomplete screening accurately
+  ([#2251](https://github.com/ditto-assistant/ditto-subnet/pull/2251),
+  [`44c2070`](https://github.com/ditto-assistant/ditto-subnet/commit/44c207027afbb221b907c77840f2bc2bf8ed451c))
+
+
 ## v0.307.5 (2026-09-24)
 
 ### Bug Fixes
