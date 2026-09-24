@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.308.1 (2026-09-24)
+
+### Bug Fixes
+
+- **platform**: Tolerate capped stale migration statuses
+  ([#2255](https://github.com/ditto-assistant/ditto-subnet/pull/2255),
+  [`4594918`](https://github.com/ditto-assistant/ditto-subnet/commit/4594918dc3a837f4aff08673d0e4cfa473fd1f4f))
+
+
 ## v0.308.0 (2026-09-24)
 
 ### Bug Fixes
