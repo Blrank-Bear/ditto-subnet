@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.307.7 (2026-09-24)
+
+### Bug Fixes
+
+- **screener**: Honor configured L3 review step budget
+  ([#2252](https://github.com/ditto-assistant/ditto-subnet/pull/2252),
+  [`4a2718d`](https://github.com/ditto-assistant/ditto-subnet/commit/4a2718d8be64cf0cf574bc17344ddadfc2770eb3))
+
+
 ## v0.307.6 (2026-09-24)
 
 ### Bug Fixes
