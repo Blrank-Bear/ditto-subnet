@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.306.2 (2026-09-24)
+
+### Bug Fixes
+
+- **screener**: Retry transient image multipart calls
+  ([#2025](https://github.com/ditto-assistant/ditto-subnet/pull/2025),
+  [`6438aff`](https://github.com/ditto-assistant/ditto-subnet/commit/6438affae38e55d16f733b3924d6a8f982c65dac))
+
+
 ## v0.306.1 (2026-09-24)
 
 ### Bug Fixes
