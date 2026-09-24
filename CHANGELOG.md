@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.305.0 (2026-09-24)
+
+### Bug Fixes
+
+- **screener**: Retry idempotent image upload initiation
+  ([#2199](https://github.com/ditto-assistant/ditto-subnet/pull/2199),
+  [`0ef06f3`](https://github.com/ditto-assistant/ditto-subnet/commit/0ef06f3245d66dae29c6d907eef9a99ac6302260))
+
+### Documentation
+
+- **governance**: Define signed bounty claims
+  ([#2070](https://github.com/ditto-assistant/ditto-subnet/pull/2070),
+  [`97ca7e2`](https://github.com/ditto-assistant/ditto-subnet/commit/97ca7e255a58993cd63431b6024eec9b5c2d016f))
+
+### Features
+
+- **platform,backroom**: Show infrastructure retry backoff and breaker state
+  ([#2084](https://github.com/ditto-assistant/ditto-subnet/pull/2084),
+  [`0512988`](https://github.com/ditto-assistant/ditto-subnet/commit/0512988f21d8c3033f038f8493f9e28513c155a1))
+
+
 ## v0.304.1 (2026-09-24)
 
 ### Bug Fixes
