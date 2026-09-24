@@ -2,6 +2,39 @@
 
 <!-- version list -->
 
+## v0.304.0 (2026-09-24)
+
+### Bug Fixes
+
+- **backroom**: Cap OAuth grants to requested and consented scopes
+  ([#2089](https://github.com/ditto-assistant/ditto-subnet/pull/2089),
+  [`75ac116`](https://github.com/ditto-assistant/ditto-subnet/commit/75ac116f61d704d5af3a3fdf3e8bd7e692db0022))
+
+- **dittobench-api**: Accept the empty attestation config BuildKit writes
+  ([#2065](https://github.com/ditto-assistant/ditto-subnet/pull/2065),
+  [`c41000b`](https://github.com/ditto-assistant/ditto-subnet/commit/c41000bbac01dec6cd22ceb0baf11ecb0fb7bc3d))
+
+- **dittobench-api**: Refuse private harness with screened images
+  ([#2061](https://github.com/ditto-assistant/ditto-subnet/pull/2061),
+  [`361e347`](https://github.com/ditto-assistant/ditto-subnet/commit/361e347b3b1c50552ca3b2a6396a97ec4e00a732))
+
+### Chores
+
+- **tests**: Stop the L2 review suite hanging on a root worker
+  ([#2067](https://github.com/ditto-assistant/ditto-subnet/pull/2067),
+  [`7bda2a5`](https://github.com/ditto-assistant/ditto-subnet/commit/7bda2a5ea522878cdf56a8b00d982f943b590184))
+
+### Features
+
+- **platform**: Expose owner retest admission decisions
+  ([#2110](https://github.com/ditto-assistant/ditto-subnet/pull/2110),
+  [`0916d22`](https://github.com/ditto-assistant/ditto-subnet/commit/0916d22509450b693d576dca356ae49b1638fdd6))
+
+- **platform**: Name scoring and emission bench versions apart
+  ([#2098](https://github.com/ditto-assistant/ditto-subnet/pull/2098),
+  [`2917ee0`](https://github.com/ditto-assistant/ditto-subnet/commit/2917ee0a14492bfc139fa77ee9f82c37aa663bf3))
+
+
 ## v0.303.1 (2026-09-23)
 
 ### Bug Fixes
