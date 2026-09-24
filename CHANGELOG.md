@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v0.306.0 (2026-09-24)
+
+### Bug Fixes
+
+- **ci**: Serialize migration-order sweep triggers
+  ([#2076](https://github.com/ditto-assistant/ditto-subnet/pull/2076),
+  [`55c1c04`](https://github.com/ditto-assistant/ditto-subnet/commit/55c1c042d06abf9d9cc16568b207ae2fbbc76801))
+
+- **infra**: Bound Platform PostgreSQL log retention
+  ([#2121](https://github.com/ditto-assistant/ditto-subnet/pull/2121),
+  [`3a5151d`](https://github.com/ditto-assistant/ditto-subnet/commit/3a5151d02a64b7387d7e957c811e193f70f4500c))
+
+- **platform**: Show the current reason for a reopened review hold
+  ([#2125](https://github.com/ditto-assistant/ditto-subnet/pull/2125),
+  [`8d42e15`](https://github.com/ditto-assistant/ditto-subnet/commit/8d42e15fa3581481e965345fab6089a003d2600c))
+
+- **screener**: Harden legacy worker unit and lock CI uv installs
+  ([#2062](https://github.com/ditto-assistant/ditto-subnet/pull/2062),
+  [`a1c3b4c`](https://github.com/ditto-assistant/ditto-subnet/commit/a1c3b4c8a7405eef154c479b8689a84c50bb6667))
+
+### Documentation
+
+- **platform**: Document last_provider_success_at as last GCE fleet read
+  ([#2082](https://github.com/ditto-assistant/ditto-subnet/pull/2082),
+  [`fdad2fb`](https://github.com/ditto-assistant/ditto-subnet/commit/fdad2fb473cf31b37acd36645407b5dc0ce521b8))
+
+### Features
+
+- **platform**: Add ordinary source-review queue-age SLO
+  ([#2134](https://github.com/ditto-assistant/ditto-subnet/pull/2134),
+  [`a38e643`](https://github.com/ditto-assistant/ditto-subnet/commit/a38e643c252126c15461ee167e7be6313c5ecc07))
+
+- **platform,backroom**: Expose chat failure taxonomy
+  ([#2109](https://github.com/ditto-assistant/ditto-subnet/pull/2109),
+  [`35f9b70`](https://github.com/ditto-assistant/ditto-subnet/commit/35f9b704fa6ea3a323bf1ade4bb5f19f8aa2f066))
+
+
 ## v0.305.0 (2026-09-24)
 
 ### Bug Fixes
