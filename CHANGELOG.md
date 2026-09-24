@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.307.5 (2026-09-24)
+
+### Bug Fixes
+
+- **dittobench-api**: Key practice limiter on trusted client IP
+  ([#2239](https://github.com/ditto-assistant/ditto-subnet/pull/2239),
+  [`515ca20`](https://github.com/ditto-assistant/ditto-subnet/commit/515ca20a646c9550a9e4ba1f15c6b946afabfcd7))
+
+
 ## v0.307.4 (2026-09-24)
 
 ### Bug Fixes
