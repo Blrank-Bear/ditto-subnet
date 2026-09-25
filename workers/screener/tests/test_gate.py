@@ -734,6 +734,36 @@ def test_unportable_build_context_owner_is_infrastructure_failure() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "ERROR: failed to solve: rpc error: code = Unknown desc = no http "
+        "response from session for qmxu3s09iqv12evun9jcoq2we",
+        "ERROR: failed to solve: no active session for "
+        "qmxu3s09iqv12evun9jcoq2we: context deadline exceeded",
+        "ERROR: failed to receive status: rpc error: code = Unavailable "
+        "desc = error reading from server: EOF",
+    ],
+)
+def test_lost_buildkit_session_is_infrastructure_failure(detail: str) -> None:
+    assert _docker_infrastructure_failure(detail)
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        'ERROR: failed to solve: process "/bin/sh -c cargo build --release '
+        '--locked" did not complete successfully: exit code: 101',
+        "ERROR: failed to solve: failed to compute cache key: failed to "
+        'calculate checksum of ref abc::xyz: "/Cargo.lock": not found',
+        "ERROR: failed to solve: dockerfile parse error on line 3: "
+        "unknown instruction: RUNN",
+    ],
+)
+def test_artifact_build_failure_is_not_infrastructure(detail: str) -> None:
+    assert not _docker_infrastructure_failure(detail)
+
+
 async def test_export_image_hashes_exact_docker_archive(
     make_config: Callable[..., ScreenerConfig],
 ) -> None:
@@ -1895,6 +1925,31 @@ async def test_unloaded_buildx_result_is_retryable_infrastructure(
     assert result.outcome == ScreeningOutcome.RETRYABLE_INFRA
     assert result.evidence[-1].code == "docker-build-infrastructure"
     assert "No such image" in result.detail
+
+
+async def test_lost_buildkit_session_is_retryable_infrastructure(
+    make_config: Callable[..., ScreenerConfig],
+) -> None:
+    tarball = _valid_tar()
+
+    async def session_lost(
+        args: list[str], *, stdin: Any = None, **_: Any
+    ) -> tuple[int, str]:
+        if args[0] == "build" and stdin is not None:
+            stdin.read()
+            return 1, (
+                "ERROR: failed to solve: rpc error: code = Unknown desc = no "
+                "http response from session for qmxu3s09iqv12evun9jcoq2we"
+            )
+        return 0, ""
+
+    gate = _gate_with(make_config(), session_lost, tarball=tarball)
+    async with gate._client:
+        result = await _screen(gate, hashlib.sha256(tarball).hexdigest())
+
+    assert result.outcome == ScreeningOutcome.RETRYABLE_INFRA
+    assert result.evidence[-1].code == "docker-build-infrastructure"
+    assert "no http response from session" in result.detail
 
 
 async def test_build_uses_daemon_image_id_resolved_from_unique_tag(
