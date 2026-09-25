@@ -8345,6 +8345,11 @@ export interface components {
          *     an item whose state moved is skipped, never force-granted.
          */
         AdminBatchRetryRequest: {
+            /**
+             * Acknowledge Provider Outage
+             * @default false
+             */
+            acknowledge_provider_outage: boolean;
             /** Items */
             items: components["schemas"]["AdminBatchRetryItem"][];
             /** Reason */
@@ -12205,6 +12210,12 @@ export interface components {
             exhausted_validator_count: number;
             /** Miner Hotkey */
             miner_hotkey: string;
+            provider_outage?: components["schemas"]["ProviderCircuitSnapshot"] | null;
+            /**
+             * Provider Outage Blocks Retry
+             * @default false
+             */
+            provider_outage_blocks_retry: boolean;
             /** Quorum */
             quorum: number;
             /** Recommended Action */
@@ -12765,6 +12776,12 @@ export interface components {
             live_ticket_count: number;
             /** Miner Hotkey */
             miner_hotkey: string;
+            provider_outage?: components["schemas"]["ProviderCircuitSnapshot"] | null;
+            /**
+             * Provider Outage Blocks Retry
+             * @default false
+             */
+            provider_outage_blocks_retry: boolean;
             /** Quorum */
             quorum: number;
             /** Recommended Action */
@@ -12792,6 +12809,11 @@ export interface components {
         };
         /** AdminValidationRetryRequest */
         AdminValidationRetryRequest: {
+            /**
+             * Acknowledge Provider Outage
+             * @default false
+             */
+            acknowledge_provider_outage: boolean;
             /** Expected Snapshot */
             expected_snapshot: string;
             /** Reason */

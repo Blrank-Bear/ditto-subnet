@@ -385,6 +385,8 @@ describe('Backroom MCP tools', () => {
     // Eight digest-only V13 provenance/analysis tools and three process-key
     // tools add bounded entries. Detailed procedures remain in tool help.
     // The scorer-pin rotation/history/current-packet controls add bounded entries.
+    // The two validator-retry inputs gain acknowledgeProviderOutage (#2087);
+    // measured 163,528 bytes together.
     expect(JSON.stringify(response.tools).length).toBeLessThanOrEqual(164_000)
     const descriptions = response.tools.map((tool) => tool.description ?? '')
     // Includes concise rollout and protected-policy controls; tutorials live
@@ -7561,6 +7563,8 @@ describe('Backroom MCP tools', () => {
         blocking_reason: null,
         recommended_action: null,
         dominant_failure_code: null,
+        provider_outage: null,
+        provider_outage_blocks_retry: null,
         earliest_retry_after: null,
         attempts_used: 3,
         exhausted_validator_count: 3,
@@ -7832,6 +7836,7 @@ describe('Backroom MCP tools', () => {
               expected_snapshot: snapshotB,
             },
           ],
+          acknowledge_provider_outage: false,
         }),
       }),
     )
