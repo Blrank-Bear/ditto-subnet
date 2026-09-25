@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.6 (2026-09-25)
+
+### Bug Fixes
+
+- **platform**: Rotate V13 scorer packets with guarded history
+  ([#2273](https://github.com/ditto-assistant/ditto-subnet/pull/2273),
+  [`ab20425`](https://github.com/ditto-assistant/ditto-subnet/commit/ab20425d58094c23a13bbd5874249dceb4d48c8e))
+
+
 ## v0.311.5 (2026-09-25)
 
 ### Bug Fixes
