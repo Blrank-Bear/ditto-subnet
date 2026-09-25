@@ -19,8 +19,11 @@ from ditto_screener.l2_review import (
     L2RunResult,
     L2Usage,
     LayeredSourceReviewAgent,
+    _classified_suffix,
     _enforce_causal_authority,
+    _InvariantBindingError,
     _parse_l2_review,
+    _submission_validation_subcode,
 )
 from ditto_screener.policy import SourceReviewObservation
 from ditto_screener.source_review import TarSourceRepository
@@ -31,6 +34,7 @@ from ditto_screening_protocol import (
     SourceReviewEvidenceItem,
     SourceReviewEvidenceRole,
     SourceReviewFinding,
+    SourceReviewInvariant,
     SourceReviewScorerVisibleEffect,
 )
 
@@ -765,3 +769,103 @@ def test_sanitized_corpus_runs_through_production_parser_and_authority_boundary(
     assert verification.reason_code == "causal-evidence-verified"
     assert verification.authority_transition == case["authority_transition"]
     assert verification.scorer_visible_effect == case["scorer_visible_effect"]
+
+
+def _scorer_rewrite_review(
+    tmp_path: Path, breaches: set[str], *, policy_version: int
+) -> tuple[dict[str, object], str, TarSourceRepository]:
+    """The hidden scorer-dispatch rewrite with its breach moved between invariants."""
+    case = next(
+        item
+        for item in _regression_cases()
+        if item["id"] == "prohibited-hidden-scorer-dispatch"
+    )
+    archive, artifact_sha, digest = _tar(tmp_path, str(case["source"]))
+    value = _corpus_review_value(case, digest)
+    decisions = value["invariants"]
+    assert isinstance(decisions, list)
+    indices = next(
+        item["evidence_indices"]
+        for item in decisions
+        if item["invariant"] == "i3_model_dissent"
+    )
+    for decision in decisions:
+        invariant = decision["invariant"]
+        if invariant not in {"i3_model_dissent", "i4_derived_value_authority"}:
+            continue
+        if invariant in breaches:
+            decision.update(
+                disposition="breach", pass_clause=None, evidence_indices=indices
+            )
+        else:
+            decision.update(
+                disposition="pass",
+                pass_clause=_PASS_CLAUSES[invariant],
+                evidence_indices=[],
+            )
+    if policy_version < 13:
+        value["invariants"] = [
+            item
+            for item in decisions
+            if item["invariant"] != "i8_evaluation_independence"
+        ]
+    return value, artifact_sha, TarSourceRepository(str(archive))
+
+
+@pytest.mark.parametrize("policy_version", [12, 13])
+def test_v12_scorer_field_rewrite_accepts_the_i4_breach_the_prompt_names(
+    tmp_path: Path, policy_version: int
+) -> None:
+    value, artifact_sha, repository = _scorer_rewrite_review(
+        tmp_path, {"i4_derived_value_authority"}, policy_version=policy_version
+    )
+
+    observation, _analyzed, _causal, basis = _parse_l2_review(
+        value,
+        artifact_sha256=artifact_sha,
+        repository=repository,
+        policy_version=policy_version,
+    )
+
+    assert observation.ok is True
+    assert basis == "scorer_field_manipulation"
+
+
+def test_pre_v12_scorer_field_rewrite_still_requires_i3(tmp_path: Path) -> None:
+    value, artifact_sha, repository = _scorer_rewrite_review(
+        tmp_path, {"i4_derived_value_authority"}, policy_version=11
+    )
+
+    with pytest.raises(_InvariantBindingError) as caught:
+        _parse_l2_review(
+            value,
+            artifact_sha256=artifact_sha,
+            repository=repository,
+            policy_version=11,
+        )
+
+    assert caught.value.required == (SourceReviewInvariant.MODEL_DISSENT,)
+
+
+def test_missing_scorer_rewrite_breach_names_both_invariants(tmp_path: Path) -> None:
+    value, artifact_sha, repository = _scorer_rewrite_review(
+        tmp_path, set(), policy_version=13
+    )
+
+    with pytest.raises(_InvariantBindingError) as caught:
+        _parse_l2_review(
+            value,
+            artifact_sha256=artifact_sha,
+            repository=repository,
+            policy_version=13,
+        )
+
+    error = caught.value
+    assert error.required == (
+        SourceReviewInvariant.MODEL_DISSENT,
+        SourceReviewInvariant.DERIVED_VALUE_AUTHORITY,
+    )
+    assert _submission_validation_subcode(error) == "invariant_binding"
+    # The message is unchanged, so failure classification keeps working.
+    assert str(error) == "L2 causal mechanism lacks its required invariant breach"
+    assert _classified_suffix(error) == "inconsistent-verdict"

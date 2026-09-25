@@ -267,6 +267,11 @@ _SUBMISSION_VALIDATION_HINTS = {
         "Bind the trigger, authority decision, and observed effect to exact "
         "source locations and satisfy the required causal roles."
     ),
+    "invariant_binding": (
+        "The invariant sweep contradicts the submitted mechanism. Mark the "
+        "required invariant as breach, and cite the authority_bypass evidence "
+        "index in that breach decision."
+    ),
     "causal_path": (
         "For a violation, causal_path needs at least two exact artifact "
         "path/line entries, including one trigger and one effect role."
@@ -295,6 +300,8 @@ _SUBMISSION_VALIDATION_HINTS = {
 
 def _submission_validation_subcode(error: ValueError) -> str:
     """Reduce fixed host validation failures to source-free correction codes."""
+    if isinstance(error, _InvariantBindingError):
+        return "invariant_binding"
     message = str(error)
     if "L2 violation lacks a causal trigger/effect path" in message:
         return "causal_path"
@@ -558,6 +565,67 @@ _INVARIANT_BY_AUTHORITY_TRANSITION = {
         SourceReviewInvariant.EVALUATION_INDEPENDENCE
     ),
 }
+# Policy v12 made scorer-visible slot rewrites "an I4 breach with authority
+# transition scorer_field_rewritten" (docs/source-review-policy.md, and the v12
+# prompt addendum). The v10 maps above bind that transition and the
+# scorer_field_manipulation basis only to I3, so a model that followed the
+# prompt could never satisfy the binding. From v12 either I3 (the host
+# overrides the model's output) or I4 (the host rewrites the model's value into
+# the slot) satisfies them; v10/v11 keep the original mapping.
+_SCORER_SLOT_REWRITE_POLICY_VERSION = 12
+# Rejected violation submissions a terminal-verdict trajectory may correct
+# before it ends as an unresolved-violation hold.
+_MAX_REJECTED_VIOLATION_SUBMISSIONS = 3
+
+
+def _scorer_slot_rewrite(invariant: SourceReviewInvariant, policy_version: int) -> bool:
+    return (
+        invariant == SourceReviewInvariant.MODEL_DISSENT
+        and policy_version >= _SCORER_SLOT_REWRITE_POLICY_VERSION
+    )
+
+
+def _transition_invariants(
+    transition: SourceReviewAuthorityTransition, policy_version: int
+) -> frozenset[SourceReviewInvariant]:
+    """Invariants any one of which satisfies the authority transition."""
+    invariant = _INVARIANT_BY_AUTHORITY_TRANSITION[transition]
+    if (
+        transition == SourceReviewAuthorityTransition.SCORER_FIELD_REWRITTEN
+        and _scorer_slot_rewrite(invariant, policy_version)
+    ):
+        return frozenset({invariant, SourceReviewInvariant.DERIVED_VALUE_AUTHORITY})
+    return frozenset({invariant})
+
+
+def _basis_invariants(
+    resolution_basis: str, policy_version: int
+) -> frozenset[SourceReviewInvariant]:
+    """Invariants any one of which satisfies the resolution basis."""
+    invariant = _INVARIANT_BY_RESOLUTION_BASIS.get(resolution_basis)
+    if invariant is None:
+        return frozenset()
+    if resolution_basis == "scorer_field_manipulation" and _scorer_slot_rewrite(
+        invariant, policy_version
+    ):
+        return frozenset({invariant, SourceReviewInvariant.DERIVED_VALUE_AUTHORITY})
+    return frozenset({invariant})
+
+
+class _InvariantBindingError(ValueError):
+    """A violation's invariant sweep does not breach what its mechanism needs.
+
+    The message stays fixed so ``_L2_FAILURE_CODES`` keeps classifying it; the
+    required invariant ids ride separately into the model's correction.
+    """
+
+    def __init__(
+        self, message: str, required: tuple[SourceReviewInvariant, ...]
+    ) -> None:
+        super().__init__(message)
+        self.required = required
+
+
 _CAUSAL_CATEGORY_FAMILIES = (
     frozenset(
         {
@@ -4054,16 +4122,18 @@ class TerraSolSourceReviewAgent:
         pending_tool_corrections: set[str] = set()
         no_call_corrections = 0
         rejected_violation_certificate = False
+        rejected_violation_submissions = 0
 
         def request_submit_correction(
             call: object,
             *,
             reason: str,
             validation_subcode: str | None = None,
+            required_invariants: tuple[str, ...] = (),
             missing_sections: tuple[str, ...] = (),
             needs_source_read: bool = False,
         ) -> None:
-            nonlocal rejected_violation_certificate
+            nonlocal rejected_violation_certificate, rejected_violation_submissions
             try:
                 call_id = _call_id_value(call)
             except ValueError as error:
@@ -4085,6 +4155,8 @@ class TerraSolSourceReviewAgent:
             if self._terminal_verdict_required:
                 if proposed_disposition == "violation":
                     rejected_violation_certificate = True
+                    if reason == "validation":
+                        rejected_violation_submissions += 1
                 self._audit.record(
                     {
                         "recorded_at": time.time(),
@@ -4094,6 +4166,7 @@ class TerraSolSourceReviewAgent:
                         "step": steps_used,
                         "reason": reason,
                         "validation_subcode": validation_subcode,
+                        "required_invariants": list(required_invariants),
                         "proposed_disposition": proposed_disposition,
                         "missing_sections": list(missing_sections),
                         "needs_source_read": needs_source_read,
@@ -4104,6 +4177,13 @@ class TerraSolSourceReviewAgent:
                 "validation": (
                     "The host rejected this final review: "
                     + _SUBMISSION_VALIDATION_HINTS[validation_subcode or "schema"]
+                    + (
+                        " Required breach (any one of): "
+                        + ", ".join(required_invariants)
+                        + "."
+                        if required_invariants
+                        else ""
+                    )
                     + " Do not change the verdict to bypass checks."
                 ),
                 "safe_coverage": (
@@ -4390,7 +4470,45 @@ class TerraSolSourceReviewAgent:
                             submitted[0],
                             reason="validation",
                             validation_subcode=_submission_validation_subcode(error),
+                            required_invariants=(
+                                tuple(item.value for item in error.required)
+                                if isinstance(error, _InvariantBindingError)
+                                else ()
+                            ),
                         )
+                        if (
+                            rejected_violation_submissions
+                            >= _MAX_REJECTED_VIOLATION_SUBMISSIONS
+                        ):
+                            # Terminal mode forbids an inconclusive submission,
+                            # so without a bound a violation the host keeps
+                            # rejecting loops until a budget, timeout, or
+                            # provider error. End it as the same unresolved-
+                            # violation hold a later label switch gets.
+                            self._audit.record(
+                                {
+                                    "recorded_at": time.time(),
+                                    "event_type": "report_only_unresolved_violation",
+                                    "artifact_sha256": artifact_sha256,
+                                    "role": role,
+                                    "step": steps_used,
+                                    "reason": "validation-correction-limit",
+                                }
+                            )
+                            return L2RunResult(
+                                observation=_failure(
+                                    "l2-unresolved-violation", "inconclusive"
+                                ),
+                                analyzed_files=(),
+                                causal_path=(),
+                                tools=tuple(tool_names),
+                                usage=usage,
+                                cache_hit=False,
+                                response_models=tuple(response_models),
+                                response_providers=tuple(response_providers),
+                                resolution_basis="insufficient_static_evidence",
+                                dossier_complete=trajectory_complete,
+                            )
                         continue
                     if (
                         self._compact_review_packet
@@ -5705,18 +5823,16 @@ def _validate_violation_invariant_binding(
     resolution_basis: str,
     causal_evidence: SourceReviewCausalEvidence | None,
     evidence: list[SourceReviewEvidenceItem],
+    policy_version: int = SCREENING_POLICY_VERSION,
 ) -> None:
     """Bind a model-authored v10 breach to the host-validated causal mechanism."""
 
     if causal_evidence is None:
         return
-    transition_invariant = _INVARIANT_BY_AUTHORITY_TRANSITION[
-        causal_evidence.authority_transition
-    ]
-    expected = {transition_invariant}
-    basis_invariant = _INVARIANT_BY_RESOLUTION_BASIS.get(resolution_basis)
-    if basis_invariant is not None:
-        expected.add(basis_invariant)
+    transition_invariants = _transition_invariants(
+        causal_evidence.authority_transition, policy_version
+    )
+    basis_invariants = _basis_invariants(resolution_basis, policy_version)
     authority_locations = {
         (binding.path, binding.line, binding.category)
         for binding in causal_evidence.role_bindings
@@ -5728,16 +5844,33 @@ def _validate_violation_invariant_binding(
         if (item.path, item.line, item.category) in authority_locations
     }
     decisions = {item.invariant: item for item in assessment.decisions}
-    if any(
-        decisions[invariant].disposition != SourceReviewInvariantDisposition.BREACH
-        for invariant in expected
+
+    def breached(invariant: SourceReviewInvariant) -> bool:
+        decision = decisions.get(invariant)
+        return (
+            decision is not None
+            and decision.disposition == SourceReviewInvariantDisposition.BREACH
+        )
+
+    transition_breaches = [item for item in transition_invariants if breached(item)]
+    if not transition_breaches:
+        raise _InvariantBindingError(
+            "L2 causal mechanism lacks its required invariant breach",
+            tuple(sorted(transition_invariants)),
+        )
+    if basis_invariants and not any(breached(item) for item in basis_invariants):
+        raise _InvariantBindingError(
+            "L2 causal mechanism lacks its required invariant breach",
+            tuple(sorted(basis_invariants)),
+        )
+    if authority_indices and not any(
+        authority_indices.intersection(decisions[item].evidence_indices)
+        for item in transition_breaches
     ):
-        raise ValueError("L2 causal mechanism lacks its required invariant breach")
-    transition_decision = decisions[transition_invariant]
-    if authority_indices and not authority_indices.intersection(
-        transition_decision.evidence_indices
-    ):
-        raise ValueError("L2 invariant breach is not bound to authority evidence")
+        raise _InvariantBindingError(
+            "L2 invariant breach is not bound to authority evidence",
+            tuple(sorted(transition_breaches)),
+        )
 
 
 def _parse_l2_review(
@@ -6010,6 +6143,7 @@ def _parse_l2_review(
             resolution_basis=str(resolution_basis),
             causal_evidence=causal_evidence,
             evidence=public_evidence,
+            policy_version=policy_version,
         )
     summary = (
         "Level-2 review found no causally established policy violation."

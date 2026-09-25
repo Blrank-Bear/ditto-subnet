@@ -5201,6 +5201,90 @@ async def test_report_only_rejected_violation_cannot_become_safe(
     assert "report_only_unresolved_violation" in audit_path.read_text()
 
 
+async def test_report_only_repeatedly_rejected_violation_ends_as_hold(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audit_path = tmp_path / "rejected-violation-limit-audit.jsonl"
+    agent = SolL2SourceReviewAgent(
+        api_key_file=None,
+        base_url="https://openrouter.test/api/v1",
+        harness=_FakeHarness(),  # type: ignore[arg-type]
+        cache_dir=str(tmp_path / "cache"),
+        audit_journal=L2AuditJournal(str(audit_path), retention_days=30),
+        timeout_seconds=30,
+        max_steps=48,
+        max_input_tokens=80_000,
+        max_output_tokens=8_000,
+        max_completion_tokens=2_400,
+        max_cost_usd=1.5,
+        cache_ttl_seconds=86_400,
+        l3_enabled=False,
+        terminal_verdict_required=True,
+    )
+    required = (
+        l2_review.SourceReviewInvariant.MODEL_DISSENT,
+        l2_review.SourceReviewInvariant.DERIVED_VALUE_AUTHORITY,
+    )
+
+    def parse(*_args: object, **_kwargs: object) -> tuple[object, tuple, tuple, str]:
+        raise l2_review._InvariantBindingError(
+            "L2 causal mechanism lacks its required invariant breach", required
+        )
+
+    monkeypatch.setattr(l2_review, "_parse_l2_review", parse)
+    requests: list[list[dict[str, object]]] = []
+
+    async def post(
+        _client: object, _key: object, items: list[dict[str, object]], **_kwargs: object
+    ) -> httpx.Response:
+        requests.append(list(items))
+        return _response(
+            [
+                _tool_call(
+                    str(len(requests)), "submit_l2_review", {"disposition": "violation"}
+                )
+            ],
+            model="openai/gpt-6-sol",
+        )
+
+    monkeypatch.setattr(agent, "_post", post)
+    async with httpx.AsyncClient() as client:
+        result = await agent._run_trajectory(
+            client,
+            "test-key",
+            tmp_path,
+            None,  # type: ignore[arg-type]
+            artifact_sha256="d" * 64,
+            dossier={},
+            role="analyst",
+            reasoning_effort="model_default",
+            model="openai/gpt-6-sol",
+            fallback_models=(),
+            provider="azure",
+            usage_before=l2_review.L2Usage(),
+            deadline=None,
+            dossier_complete=True,
+        )
+
+    assert len(requests) == l2_review._MAX_REJECTED_VIOLATION_SUBMISSIONS
+    assert result.observation.ok is False
+    assert result.observation.error_code == "l2-unresolved-violation"
+    assert result.resolution_basis == "insufficient_static_evidence"
+    correction = json.loads(requests[1][-1]["output"])
+    assert correction["validation_subcode"] == "invariant_binding"
+    assert "i3_model_dissent, i4_derived_value_authority" in correction["message"]
+    events = [json.loads(line) for line in audit_path.read_text().splitlines()]
+    corrections = [
+        item
+        for item in events
+        if item.get("event_type") == "report_only_submit_correction"
+    ]
+    assert len(corrections) == l2_review._MAX_REJECTED_VIOLATION_SUBMISSIONS
+    assert corrections[0]["required_invariants"] == [item.value for item in required]
+    assert events[-1]["event_type"] == "report_only_unresolved_violation"
+    assert events[-1]["reason"] == "validation-correction-limit"
+
+
 async def test_report_only_provider_body_fault_retries_exact_turn_once(
     tmp_path: Path,
 ) -> None:
