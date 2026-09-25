@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.311.11 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Distinguish suppressed calls from executed ledger
+  ([#2284](https://github.com/ditto-assistant/ditto-subnet/pull/2284),
+  [`3ca26bd`](https://github.com/ditto-assistant/ditto-subnet/commit/3ca26bd97dd8cba170ab3503a9ef905ca87ee7b7))
+
+- **screener**: Retain image evidence for v13 source holds
+  ([#2209](https://github.com/ditto-assistant/ditto-subnet/pull/2209),
+  [`04343d3`](https://github.com/ditto-assistant/ditto-subnet/commit/04343d380ca7e3cfb5c0ba82f6e42fc7de68a5a7))
+
+
 ## v0.311.10 (2026-09-25)
 
 ### Bug Fixes
