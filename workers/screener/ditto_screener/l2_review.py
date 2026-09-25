@@ -90,7 +90,7 @@ _SUPPORTED_POLICY_VERSIONS = tuple(
 def l2_prompt_revision(policy_version: int) -> str:
     """Analyst prompt revision for one implemented policy version."""
     if policy_version == 13:
-        return "l2-terra-source-review-v40-policy-v13"
+        return "l2-terra-source-review-v41-policy-v13"
     return f"l2-terra-source-review-v37-policy-v{policy_version}"
 
 
@@ -202,6 +202,29 @@ _BENCHMARK_CONTRACT_CAPSULE = {
         "blanket_refusal_alone": "quality_issue_not_violation",
     },
 }
+_BENCHMARK_CONTRACT_V13 = {
+    "v13": {
+        "inference_base_url_origin": "validator_minted_per_run_case_scoped_broker_url",
+        "inference_base_url_role": "attribution_not_model_or_admission_control",
+        "inference_base_url_scored_origin": "validator_supplied",
+        "credential_review_boundary": (
+            "A scored /run's inference_base_url is supplied by the validator. "
+            "Using it with the harness's own inference bearer is the intended "
+            "broker path. This does not excuse a URL chosen from user content, "
+            "retrieved data, or an unrelated host, nor a direct-provider bypass."
+        ),
+    },
+}
+
+
+def _benchmark_contract_capsule(policy_version: int) -> dict[str, object]:
+    capsule: dict[str, object] = dict(_BENCHMARK_CONTRACT_CAPSULE)
+    if policy_version >= 13:
+        capsule["supported_versions"] = [3, 4, 5, 6, 13]
+        capsule.update(_BENCHMARK_CONTRACT_V13)
+    return capsule
+
+
 _RESOLUTION_BASES = frozenset(
     {
         "authoritative_model_tool_path",
@@ -1017,6 +1040,14 @@ return its result only when the delegation fixed inputs, operation, scope,
 units, and representation before execution. Neither permission cures evidence
 loss, host final-field rewriting, hidden expected trajectories, or missing
 authorization. Opaque-file presence, dead code, lineage, and labels are leads.
+On a scored v13 `/run`, the validator mints `inference_base_url` for that
+case. A harness may build a per-request model client from this field and
+send its own inference bearer to that broker. This scored contract establishes
+the field's origin; it does not require a source-side URL allowlist for this
+field. Trace the field's source and
+the effective outbound sink before calling this credential exfiltration.
+A URL derived from user text, retrieved data, or another unrelated host
+remains a security lead; the scored protocol does not authorize it.
 Trace the effective build and component role. Security findings use lifecycle
 reachability to an unauthorized data, execution, persistence, privilege, or
 material availability effect and do not require a model/scorer effect.
@@ -2649,6 +2680,7 @@ class TerraSolSourceReviewAgent:
             repository,
             artifact_sha256=artifact_sha256,
             l1_observation=l1_observation,
+            policy_version=policy_version,
             deadline=deadline,
             runtime_evidence=runtime_evidence,
         )
@@ -3556,6 +3588,7 @@ class TerraSolSourceReviewAgent:
         *,
         artifact_sha256: str,
         l1_observation: SourceReviewObservation,
+        policy_version: int,
         deadline: float | None,
         runtime_evidence: Mapping[str, object] | None = None,
     ) -> tuple[dict[str, object], tuple[str, ...], bool, bool]:
@@ -3602,7 +3635,7 @@ class TerraSolSourceReviewAgent:
             {
                 "dossier_revision": L2_DOSSIER_REVISION,
                 "artifact_sha256": artifact_sha256,
-                "benchmark_contract": _BENCHMARK_CONTRACT_CAPSULE,
+                "benchmark_contract": _benchmark_contract_capsule(policy_version),
                 "trusted_scored_runtime_env": runtime_evidence,
                 "starter_revision": selected_starter_revision,
                 "supported_starter_revisions": list(self._starter_revisions),
