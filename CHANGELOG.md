@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.311.17 (2026-09-25)
+
+### Bug Fixes
+
+- **platform**: Separate the screening reason code from the operator ruling
+  ([#2279](https://github.com/ditto-assistant/ditto-subnet/pull/2279),
+  [`14ab026`](https://github.com/ditto-assistant/ditto-subnet/commit/14ab02680777955b79145e749cc51142b5b8c594))
+
+### Documentation
+
+- **dittobench-api**: State that scored runs complete when a harness ignores tool_endpoint
+  ([#2282](https://github.com/ditto-assistant/ditto-subnet/pull/2282),
+  [`7728902`](https://github.com/ditto-assistant/ditto-subnet/commit/7728902366281dd8902814f4b3c1b3d5197eb43e))
+
+
 ## v0.311.16 (2026-09-25)
 
 ### Bug Fixes
