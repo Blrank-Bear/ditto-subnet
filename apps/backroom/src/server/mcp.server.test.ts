@@ -6134,7 +6134,7 @@ describe('Backroom MCP tools', () => {
       policy_version: 7,
       manifest_digest: 'manifest',
       finding_digest: 'finding',
-      reason_code: 'source_review_suspicious',
+      screening_reason_code: 'source_review_suspicious',
       status: 'resolved',
       created_at: '2026-07-14T12:00:00Z',
       resolved_at: '2026-07-14T12:30:00Z',
@@ -6517,7 +6517,7 @@ describe('Backroom MCP tools', () => {
       policy_version: 7,
       manifest_digest: 'cd'.repeat(32),
       finding_digest: 'ef'.repeat(32),
-      reason_code: 'agentic-source-review-tripwire',
+      screening_reason_code: 'agentic-source-review-tripwire',
       evidence: [
         {
           module_id: 'luna-source-review',

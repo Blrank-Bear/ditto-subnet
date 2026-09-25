@@ -100,8 +100,10 @@ the observed-tool path. Runtime/concurrency diagnosis is
    active quarantines, oldest first. Default to five items unless the prompt
    specifies another bound.
 2. Retain the exact quarantine ID, agent UUID, name, version, full hotkey,
-   artifact SHA-256, screening attempt ID, policy version, reason code, and
-   timestamps.
+   artifact SHA-256, screening attempt ID, policy version, screening reason
+   code, and timestamps. The screening reason code is the lead the screener
+   held the submission on, never the operator's ruling — that is
+   `resolution_reason_code`, and the two are different fields on purpose.
 3. Fetch `get_screening_quarantine_contexts` for the batch, or
    `get_screening_quarantine_context` item by item. Record prior attempts,
    miner/owner lineage, duplicate evidence, and L2/L3 observations.

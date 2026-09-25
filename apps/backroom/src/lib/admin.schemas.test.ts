@@ -30,6 +30,8 @@ import {
   screeningDisputeListSchema,
   screeningDisputeSchema,
   screeningQuarantineListSchema,
+  screeningReviewEventListSchema,
+  minerQuarantineSummarySchema,
   screeningQuarantineBatchExecuteInputSchema,
   screeningQuarantineBatchPreviewInputSchema,
   screeningArtifactSchema,
@@ -542,7 +544,7 @@ describe('admin API schemas', () => {
           policy_version: 7,
           manifest_digest: 'manifest',
           finding_digest: 'finding',
-          reason_code: 'source_review_suspicious',
+          screening_reason_code: 'source_review_suspicious',
           status: 'active',
           created_at: '2026-07-14T12:00:00Z',
           resolved_at: null,
@@ -554,6 +556,95 @@ describe('admin API schemas', () => {
     })
     expect(result.items[0].policy_version).toBe(7)
     expect(result.items[0].agent_version).toBeNull()
+  })
+
+  it('coalesces the deprecated reason_code alias across a rolling deploy', () => {
+    // Platform and Backroom deploy in parallel from one release, so for one
+    // release the screening-origin code has two possible names on the wire:
+    // Platform-first sends only the old one, Backroom-first sees both. The
+    // console must read the code either way and must never see the alias as a
+    // second field it could mistake for the operator's ruling.
+    const quarantineItem = {
+      quarantine_id: 'e3bb1518-530f-42d7-a50b-b21ac9853798',
+      agent_id: '90cb5697-cbc1-40f4-a27e-439a7986a054',
+      attempt_id: '20236f60-c143-43b0-b03e-2cbe51f281d8',
+      miner_hotkey: '5Miner',
+      agent_name: 'memory-agent',
+      artifact_sha256: 'artifact',
+      policy_version: 7,
+      manifest_digest: 'manifest',
+      finding_digest: 'finding',
+      status: 'active',
+      created_at: '2026-07-14T12:00:00Z',
+      resolved_at: null,
+      resolved_by: null,
+      resolution: null,
+      resolution_reason: null,
+    }
+    const platformFirst = screeningQuarantineListSchema.parse({
+      count: 1,
+      items: [{ ...quarantineItem, reason_code: 'behavioral-oracle-passed' }],
+    }).items[0]
+    const backroomFirst = screeningQuarantineListSchema.parse({
+      count: 1,
+      items: [
+        {
+          ...quarantineItem,
+          screening_reason_code: 'behavioral-oracle-passed',
+          reason_code: 'stale-alias',
+        },
+      ],
+    }).items[0]
+
+    expect(platformFirst.screening_reason_code).toBe('behavioral-oracle-passed')
+    expect(backroomFirst.screening_reason_code).toBe('behavioral-oracle-passed')
+    expect('reason_code' in platformFirst).toBe(false)
+
+    expect(
+      screeningReviewEventListSchema.parse({
+        items: [
+          {
+            event_id: '5b1a5f6c-4a2f-4b4f-9d2c-1f0b2c3d4e5f',
+            agent_id: '90cb5697-cbc1-40f4-a27e-439a7986a054',
+            attempt_id: '20236f60-c143-43b0-b03e-2cbe51f281d8',
+            quarantine_id: null,
+            resolution_id: null,
+            previous_event_id: null,
+            event_kind: 'automated',
+            artifact_sha256: 'a'.repeat(64),
+            policy_version: 7,
+            actor: 'screener',
+            reviewer_model: null,
+            outcome: 'reject',
+            effective_decision: 'reject',
+            reason_code: 'behavioral-oracle-passed',
+            reason: null,
+            prior_agent_status: 'screening',
+            next_agent_status: 'screening_failed',
+            evidence: {},
+            created_at: '2026-07-14T12:00:00Z',
+          },
+        ],
+        count: 1,
+        limit: 50,
+        offset: 0,
+      }).items[0].screening_reason_code,
+    ).toBe('behavioral-oracle-passed')
+
+    expect(
+      minerQuarantineSummarySchema.parse({
+        quarantine_id: 'e3bb1518-530f-42d7-a50b-b21ac9853798',
+        agent_id: '90cb5697-cbc1-40f4-a27e-439a7986a054',
+        agent_name: 'memory-agent',
+        reason_code: 'behavioral-oracle-passed',
+        status: 'resolved',
+        resolution: 'reject',
+        resolution_reason: 'Static answer table confirmed',
+        resolution_reason_code: 'operator-rejected-quarantine',
+        created_at: '2026-07-14T12:00:00Z',
+        resolved_at: '2026-07-15T09:00:00Z',
+      }).screening_reason_code,
+    ).toBe('behavioral-oracle-passed')
   })
 
   it('requires an auditable quarantine resolution reason', () => {

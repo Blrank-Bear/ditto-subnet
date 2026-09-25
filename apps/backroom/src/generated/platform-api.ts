@@ -2271,6 +2271,12 @@ export interface paths {
         /**
          * List Screening Review Events
          * @description Read immutable snapshots; a missing receipt remains missing, never CLEAR.
+         *
+         *     Each event reports two distinct codes: ``screening_reason_code`` is the
+         *     screening-origin code the screener's verdict carried, and
+         *     ``resolution_reason_code`` is the operator ruling's own code, non-null only
+         *     on a manual event. They disagree by design on a manual ruling, because the
+         *     ruling is a decision *about* the screening lead, not a replacement for it.
          */
         get: operations["list_screening_review_events_api_v1_admin_screening_review_events_get"];
         put?: never;
@@ -10143,14 +10149,26 @@ export interface components {
              * Format: uuid
              */
             quarantine_id: string;
-            /** Reason Code */
-            reason_code: string;
+            /**
+             * Reason Code
+             * @deprecated
+             * @description Deprecated alias for ``screening_reason_code``, kept for the rollout.
+             *
+             *     Same value, same screening-origin meaning, and lost as soon as the
+             *     console reads only the new name — see ``AdminQuarantineItem.reason_code``
+             *     for why the transition needs it.
+             */
+            readonly reason_code: string;
             /** Resolution */
             resolution: ("release" | "rescreen" | "reject") | null;
             /** Resolution Reason */
             resolution_reason: string | null;
+            /** Resolution Reason Code */
+            resolution_reason_code?: ("operator-released-quarantine" | "operator-rescreened-quarantine" | "operator-rejected-quarantine") | null;
             /** Resolved At */
             resolved_at: string | null;
+            /** Screening Reason Code */
+            screening_reason_code: string;
             /**
              * Status
              * @enum {string}
@@ -10579,14 +10597,26 @@ export interface components {
              * Format: uuid
              */
             quarantine_id: string;
-            /** Reason Code */
-            reason_code: string;
+            /**
+             * Reason Code
+             * @deprecated
+             * @description Deprecated alias for ``screening_reason_code``, kept for the rollout.
+             *
+             *     Platform and Backroom deploy in parallel from one release, so a Backroom
+             *     that has not been redeployed still requires this field and would reject
+             *     every quarantine item if it disappeared. It always carries the same
+             *     screening-origin code as ``screening_reason_code`` — never the operator's
+             *     ruling — and is removed once the console reads only the new name.
+             */
+            readonly reason_code: string;
             /** Resolution */
             resolution: ("release" | "rescreen" | "reject") | null;
             /** Resolution History */
             resolution_history?: components["schemas"]["AdminQuarantineResolutionEvent"][];
             /** Resolution Reason */
             resolution_reason: string | null;
+            /** Resolution Reason Code */
+            resolution_reason_code?: ("operator-released-quarantine" | "operator-rescreened-quarantine" | "operator-rejected-quarantine") | null;
             /** Resolved At */
             resolved_at: string | null;
             /** Resolved By */
@@ -10598,6 +10628,8 @@ export interface components {
             review_notes?: components["schemas"]["SourceReviewNote"][] | null;
             /** Review Notes Digest */
             review_notes_digest?: string | null;
+            /** Screening Reason Code */
+            screening_reason_code: string;
             /**
              * Status
              * @enum {string}
@@ -10627,6 +10659,8 @@ export interface components {
              * @enum {string}
              */
             resolution: "release" | "rescreen" | "reject";
+            /** Resolution Reason Code */
+            resolution_reason_code?: ("operator-released-quarantine" | "operator-rescreened-quarantine" | "operator-rejected-quarantine") | null;
         };
         /** AdminQuarantineResolveRequest */
         AdminQuarantineResolveRequest: {
@@ -11693,12 +11727,24 @@ export interface components {
             quarantine_id: string | null;
             /** Reason */
             reason: string | null;
-            /** Reason Code */
-            reason_code: string | null;
+            /**
+             * Reason Code
+             * @deprecated
+             * @description Deprecated alias for ``screening_reason_code``, kept for the rollout.
+             *
+             *     Same value, same screening-origin meaning, and lost as soon as the
+             *     console reads only the new name — see ``AdminQuarantineItem.reason_code``
+             *     for why the transition needs it.
+             */
+            readonly reason_code: string | null;
             /** Resolution Id */
             resolution_id: string | null;
+            /** Resolution Reason Code */
+            resolution_reason_code?: ("operator-released-quarantine" | "operator-rescreened-quarantine" | "operator-rejected-quarantine") | null;
             /** Reviewer Model */
             reviewer_model: string | null;
+            /** Screening Reason Code */
+            screening_reason_code: string | null;
         };
         /** AdminScreeningReviewEventList */
         AdminScreeningReviewEventList: {
