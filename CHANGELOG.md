@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.20 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Grant the worker the rootless socket only after the daemon is ready
+  ([#2212](https://github.com/ditto-assistant/ditto-subnet/pull/2212),
+  [`b918967`](https://github.com/ditto-assistant/ditto-subnet/commit/b918967ebc30853142f011034cf906f0c6ad2bf9))
+
+
 ## v0.311.19 (2026-09-25)
 
 ### Bug Fixes
