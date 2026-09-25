@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.313.2 (2026-09-25)
+
+### Bug Fixes
+
+- **dittobench**: Accept Docker 29 capability names in the executor policy check
+  ([#1926](https://github.com/ditto-assistant/ditto-subnet/pull/1926),
+  [`e9cbe05`](https://github.com/ditto-assistant/ditto-subnet/commit/e9cbe058280ff7caf32ef51b51627fd06e3131c4))
+
+- **screener**: Require L1 evidence coverage in L2 feedback
+  ([#2297](https://github.com/ditto-assistant/ditto-subnet/pull/2297),
+  [`32554be`](https://github.com/ditto-assistant/ditto-subnet/commit/32554be40475489440be8b1f206526ca3ad1ed63))
+
+- **screener**: Treat lost BuildKit sessions as retryable infrastructure
+  ([#2293](https://github.com/ditto-assistant/ditto-subnet/pull/2293),
+  [`e77efd6`](https://github.com/ditto-assistant/ditto-subnet/commit/e77efd6442995d7b0b10aa65c76a2115aa42c904))
+
+
 ## v0.313.1 (2026-09-25)
 
 ### Bug Fixes
