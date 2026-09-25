@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.311.19 (2026-09-25)
+
+### Bug Fixes
+
+- **backroom**: Keep interactive MCP access tokens valid for 24 hours
+  ([#2203](https://github.com/ditto-assistant/ditto-subnet/pull/2203),
+  [`88693ef`](https://github.com/ditto-assistant/ditto-subnet/commit/88693ef64dbbf3bbc60178f4f3bbd3adf83c5abb))
+
+- **backroom**: Label the capacity success clock as the last GCE fleet read
+  ([#2206](https://github.com/ditto-assistant/ditto-subnet/pull/2206),
+  [`259556e`](https://github.com/ditto-assistant/ditto-subnet/commit/259556e919115e0f7488bb3853debb1baa442e22))
+
+
 ## v0.311.18 (2026-09-25)
 
 ### Bug Fixes
