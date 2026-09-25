@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.312.0 (2026-09-25)
+
+### Features
+
+- **screener**: Allow GPT-6 reviewer models as opt-in settings
+  ([#2294](https://github.com/ditto-assistant/ditto-subnet/pull/2294),
+  [`39ead80`](https://github.com/ditto-assistant/ditto-subnet/commit/39ead800ff5a8c7b9e4a98937c06d8b46cb61a5c))
+
+
 ## v0.311.20 (2026-09-25)
 
 ### Bug Fixes
