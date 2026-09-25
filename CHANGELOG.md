@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.3 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Keep canary scorer lease valid through L1 review
+  ([#2270](https://github.com/ditto-assistant/ditto-subnet/pull/2270),
+  [`daec802`](https://github.com/ditto-assistant/ditto-subnet/commit/daec802d9802d3005f9244fc15ed43d4ede3cc3c))
+
+
 ## v0.311.2 (2026-09-25)
 
 ### Bug Fixes
