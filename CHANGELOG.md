@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.8 (2026-09-25)
+
+### Bug Fixes
+
+- **platform**: Honor V13 scorer pin for maintenance leases
+  ([#2280](https://github.com/ditto-assistant/ditto-subnet/pull/2280),
+  [`094704b`](https://github.com/ditto-assistant/ditto-subnet/commit/094704b1bb3b4a208cac2657320ecac8693dc8a7))
+
+
 ## v0.311.7 (2026-09-25)
 
 ### Bug Fixes
