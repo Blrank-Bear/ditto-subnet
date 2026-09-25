@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.313.1 (2026-09-25)
+
+### Bug Fixes
+
+- **platform**: Require every screener verdict to name the caller's claimed attempt
+  ([#2208](https://github.com/ditto-assistant/ditto-subnet/pull/2208),
+  [`847a87b`](https://github.com/ditto-assistant/ditto-subnet/commit/847a87b03c0bec3be30b01853ff5bf358760a135))
+
+- **platform**: Stop recommending quorum retries into a parked provider outage
+  ([#2090](https://github.com/ditto-assistant/ditto-subnet/pull/2090),
+  [`c9f43f7`](https://github.com/ditto-assistant/ditto-subnet/commit/c9f43f7da2e1e116e52df576ef94f54bec99ce77))
+
+- **platform,dashboard**: Show why a submission is in deferred source review and that no finding was
+  made ([#2257](https://github.com/ditto-assistant/ditto-subnet/pull/2257),
+  [`4163550`](https://github.com/ditto-assistant/ditto-subnet/commit/41635501925bb398209fe4313d1ec474fae0da8b))
+
+
 ## v0.313.0 (2026-09-25)
 
 ### Bug Fixes
