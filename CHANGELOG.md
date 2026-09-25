@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.311.18 (2026-09-25)
+
+### Bug Fixes
+
+- **infra**: Deny public /metrics and make the Platform proxy denials take effect behind the relay
+  pool ([#2214](https://github.com/ditto-assistant/ditto-subnet/pull/2214),
+  [`f9e2ccc`](https://github.com/ditto-assistant/ditto-subnet/commit/f9e2cccd5b3cf9d86fdacf0ad15891b162c8854a))
+
+- **validator**: Bind the sandbox Docker daemon API to loopback only
+  ([#2207](https://github.com/ditto-assistant/ditto-subnet/pull/2207),
+  [`1db16b9`](https://github.com/ditto-assistant/ditto-subnet/commit/1db16b9bf4a7df86f2bbd8d3d62d27c099e4d427))
+
+
 ## v0.311.17 (2026-09-25)
 
 ### Bug Fixes
