@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.315.1 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Report L3 model tool contract subtype
+  ([#2323](https://github.com/ditto-assistant/ditto-subnet/pull/2323),
+  [`406bfa9`](https://github.com/ditto-assistant/ditto-subnet/commit/406bfa9e747f0dfb1f8b1096998f918e1a062fdb))
+
+
 ## v0.315.0 (2026-09-25)
 
 ### Features
