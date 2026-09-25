@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.7 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Raise bounded L2 effective-input budget
+  ([#2278](https://github.com/ditto-assistant/ditto-subnet/pull/2278),
+  [`85248e2`](https://github.com/ditto-assistant/ditto-subnet/commit/85248e2d8d20dae1cf22ed95ac23b989b4aa1669))
+
+
 ## v0.311.6 (2026-09-25)
 
 ### Bug Fixes
