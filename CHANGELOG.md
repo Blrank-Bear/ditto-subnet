@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.15 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Audit v13 preflight review holds
+  ([#2291](https://github.com/ditto-assistant/ditto-subnet/pull/2291),
+  [`7322852`](https://github.com/ditto-assistant/ditto-subnet/commit/7322852b5ed7bfa1b132cc6700b8b0915fd755ee))
+
+
 ## v0.311.14 (2026-09-25)
 
 ### Bug Fixes
