@@ -710,6 +710,45 @@ def test_safety_clearance_does_not_require_l1_evidence_on_certified_low() -> Non
     assert _safety_clearance_gaps(_l1("low"), adjudicator) == ()
 
 
+def test_safety_clearance_requires_the_configured_l3_model() -> None:
+    finding = {"confidence": 1.0, "evidence": []}
+    observation = SourceReviewObservation(
+        ok=True,
+        risk_level="low",
+        finding_digest="b" * 64,
+        categories=("none",),
+        finding=finding,
+    )
+    adjudicator = L2RunResult(
+        observation,
+        ({"path": "src/lib.rs", "sha256": "c" * 64},),
+        (
+            {"path": "src/lib.rs", "line": 1, "role": "context"},
+            {"path": "src/lib.rs", "line": 2, "role": "decision"},
+            {"path": "src/lib.rs", "line": 3, "role": "effect"},
+            {"path": "src/lib.rs", "line": 4, "role": "sink"},
+        ),
+        ("read_file", "submit_l2_review"),
+        L2Usage(),
+        False,
+        response_models=("openai/gpt-6-sol",),
+        resolution_basis="authoritative_model_tool_path",
+        dossier_complete=True,
+    )
+    assert (
+        _safety_clearance_gaps(
+            _l1("low"), adjudicator, expected_model="openai/gpt-6-sol"
+        )
+        == ()
+    )
+    assert any(
+        gap.startswith("models:")
+        for gap in _safety_clearance_gaps(
+            _l1("low"), adjudicator, expected_model="openai/gpt-5.6-sol"
+        )
+    )
+
+
 def test_safety_clearance_names_unread_l1_paths() -> None:
     finding = {"confidence": 1.0, "evidence": []}
     observation = SourceReviewObservation(
@@ -4470,6 +4509,17 @@ def test_catalog_pricing_budget_accounts_for_long_context_tier() -> None:
     assert _cost(80_000, 8_000) == pytest.approx(0.64)
     assert _cost(272_000, 8_000) == pytest.approx(3.08)
     assert _cost(272_000, 8_000, cached_input_tokens=200_000) == pytest.approx(1.28)
+
+
+def test_gpt6_sol_cost_fallback_uses_its_own_conservative_rates() -> None:
+    assert _cost(80_000, 8_000, model="openai/gpt-6-sol") == pytest.approx(0.48)
+    assert _cost(272_000, 8_000, model="openai/gpt-6-sol") == pytest.approx(1.248)
+    assert _cost(
+        272_000,
+        8_000,
+        cached_input_tokens=200_000,
+        model="openai/gpt-6-sol-20260922",
+    ) == pytest.approx(0.528)
 
 
 def test_exact_reported_cost_precedes_conservative_fallback(
