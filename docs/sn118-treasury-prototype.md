@@ -7,6 +7,12 @@ or approve a bounty. The two allocation fields default to zero and the API
 rejects `mode=active`. The isolated signer runner has not been installed or run
 on a production host.
 
+The Platform shadow-policy `actor` field is caller supplied; Backroom normally
+populates it from its session, but a direct admin-token caller can supply a
+different name. It is an operator claim, not independently authenticated audit
+attribution. Identity-bound authorship must be added before this revision log
+is used as an authoritative governance record.
+
 ## Why this exists
 
 In the September 25 SN118 Discord discussion, const proposed using **some**
@@ -63,9 +69,10 @@ release and synchronized policy serving. This PR adds none of those live paths.
 
 ## Custody boundary
 
-Terraform defines a disabled-by-default private, Shielded GCE host with no
-public IP or app ingress, a dedicated service account, and one Secret Manager
-container. The signer service account may **read only this one secret**. It has
+Terraform defines disabled-by-default private, Shielded GCE signer and planner
+hosts with no public IP or app ingress, separate service accounts, and separate
+Secret Manager containers. The signer service account may **read only its
+signing secret**; the planner may read only its GM credit-observation key. The signer has
 no Platform DB token, Backroom session, validator wallet, CI/WIF impersonation,
 or GM API key. Peyton's explicit Google identity is the only IAP OS Login
 principal in this module. Terraform stores no secret version or mnemonic.
@@ -77,8 +84,9 @@ Peyton must review the Terraform plan, apply through the protected infra path,
 temporarily grant the host service account `secretmanager.versions.add` on that
 one secret using the unbound `sn118TreasuryKeyProvisioner` custom role (which
 also permits listing versions), install the pinned runtime, run the ceremony
-on the host, verify
-the public address independently, then revoke the temporary adder grant. The
+on the host, run `scripts/treasury_verify_key.py` against pinned version 1 to
+re-derive the same public address, verify registered hotkey ownership on the
+finalized chain, then revoke the temporary adder grant. The
 script refuses a second version. **None of these steps has been executed.**
 The current single-key design needs an explicit custody review before funding;
 the open 2-of-3 multisig design in PR #2119 cannot be assumed compatible with
