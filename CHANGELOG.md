@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.9 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Preserve report-only canary completion
+  ([#2283](https://github.com/ditto-assistant/ditto-subnet/pull/2283),
+  [`e33555f`](https://github.com/ditto-assistant/ditto-subnet/commit/e33555f543da0276cdbdd72e3b1133369bcfa1cb))
+
+
 ## v0.311.8 (2026-09-25)
 
 ### Bug Fixes
