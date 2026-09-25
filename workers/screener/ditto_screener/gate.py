@@ -213,6 +213,14 @@ _DOCKER_INFRASTRUCTURE_MARKERS = (
     # so it is reported as infrastructure rather than rejecting the artifact.
     "context canceled",
     "context cancelled",
+    # The build client's session to BuildKit (which streams the stdin context)
+    # was lost, or the daemon's gRPC stream dropped mid-solve. BuildKit reports
+    # these without its own name, and the same archive builds on a retry.
+    "no http response from session",
+    "no active session for",
+    "failed to receive status",
+    "error reading from server",
+    "rpc error: code = unavailable",
     "buildkit",
     "snapshotter",
     "failed to mount",
