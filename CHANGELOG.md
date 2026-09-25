@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.13 (2026-09-25)
+
+### Bug Fixes
+
+- **infra**: Pin Docker apt signing key everywhere it is fetched
+  ([#2216](https://github.com/ditto-assistant/ditto-subnet/pull/2216),
+  [`c61a474`](https://github.com/ditto-assistant/ditto-subnet/commit/c61a47426166e03fa0089fbde30e8eea2f3a0eee))
+
+
 ## v0.311.12 (2026-09-25)
 
 ### Bug Fixes
