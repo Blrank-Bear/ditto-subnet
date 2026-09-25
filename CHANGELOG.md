@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.5 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Align V13 audit and claim wire contracts
+  ([#2272](https://github.com/ditto-assistant/ditto-subnet/pull/2272),
+  [`3fee30d`](https://github.com/ditto-assistant/ditto-subnet/commit/3fee30d1e29085500a4adeb502d65415edbb64b7))
+
+
 ## v0.311.4 (2026-09-25)
 
 ### Bug Fixes
