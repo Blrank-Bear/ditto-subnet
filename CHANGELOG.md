@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.4 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Allow higher operator L2 review budgets
+  ([#2271](https://github.com/ditto-assistant/ditto-subnet/pull/2271),
+  [`30daafc`](https://github.com/ditto-assistant/ditto-subnet/commit/30daafc92ea4c8ea93009110853a664c5bfe771f))
+
+
 ## v0.311.3 (2026-09-25)
 
 ### Bug Fixes
