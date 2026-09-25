@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.314.1 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Bind scorer slot rewrites to I4
+  ([#2306](https://github.com/ditto-assistant/ditto-subnet/pull/2306),
+  [`571caf4`](https://github.com/ditto-assistant/ditto-subnet/commit/571caf4c83e13117cb63186000939bb96344509b))
+
+
 ## v0.314.0 (2026-09-25)
 
 ### Features
