@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.12 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Identify trusted v13 inference URL provenance
+  ([#2285](https://github.com/ditto-assistant/ditto-subnet/pull/2285),
+  [`48b0986`](https://github.com/ditto-assistant/ditto-subnet/commit/48b0986d96d3ca07c7a963d2d1133cb09dce0ee8))
+
+
 ## v0.311.11 (2026-09-25)
 
 ### Bug Fixes
