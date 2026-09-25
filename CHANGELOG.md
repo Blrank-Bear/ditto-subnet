@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.2 (2026-09-25)
+
+### Bug Fixes
+
+- **platform**: Accept JSON UUIDs for L2 canary scheduling
+  ([#2269](https://github.com/ditto-assistant/ditto-subnet/pull/2269),
+  [`36e1a7b`](https://github.com/ditto-assistant/ditto-subnet/commit/36e1a7b0a999f603d5ba73bf1398d6cda2cf1da7))
+
+
 ## v0.311.1 (2026-09-24)
 
 ### Bug Fixes
