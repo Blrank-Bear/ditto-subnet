@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.16 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Classify L2 submission validation feedback
+  ([#2292](https://github.com/ditto-assistant/ditto-subnet/pull/2292),
+  [`585d40f`](https://github.com/ditto-assistant/ditto-subnet/commit/585d40f0da8ae29f8f9efbe87e026b4ad529f0a5))
+
+
 ## v0.311.15 (2026-09-25)
 
 ### Bug Fixes
