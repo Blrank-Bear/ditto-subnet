@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.315.0 (2026-09-25)
+
+### Features
+
+- **screener**: Add report-only v14 generator template leads
+  ([#2310](https://github.com/ditto-assistant/ditto-subnet/pull/2310),
+  [`19dd961`](https://github.com/ditto-assistant/ditto-subnet/commit/19dd961a557067f855bc88df0e51aff4afc40441))
+
+
 ## v0.314.1 (2026-09-25)
 
 ### Bug Fixes
