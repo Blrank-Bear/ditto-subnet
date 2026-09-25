@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.317.1 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Preserve external tools and complete L3 review
+  ([#2322](https://github.com/ditto-assistant/ditto-subnet/pull/2322),
+  [`ab8741f`](https://github.com/ditto-assistant/ditto-subnet/commit/ab8741ff38623621fb06bebaba3b669024a5a92e))
+
+
 ## v0.317.0 (2026-09-25)
 
 ### Bug Fixes
