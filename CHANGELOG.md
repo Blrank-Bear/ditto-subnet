@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.313.0 (2026-09-25)
+
+### Bug Fixes
+
+- **backroom**: Offer every OAuth access level on MCP consent
+  ([#2286](https://github.com/ditto-assistant/ditto-subnet/pull/2286),
+  [`2111306`](https://github.com/ditto-assistant/ditto-subnet/commit/21113064032b3f4edca4d79bfe3f7bfdb0dfe5fc))
+
+### Features
+
+- **screener**: Add strict local L1-L3 source replay gate
+  ([#2289](https://github.com/ditto-assistant/ditto-subnet/pull/2289),
+  [`5ca68bf`](https://github.com/ditto-assistant/ditto-subnet/commit/5ca68bf67f3aa44dab67675f5495da00fdd6f7cd))
+
+
 ## v0.312.0 (2026-09-25)
 
 ### Features
