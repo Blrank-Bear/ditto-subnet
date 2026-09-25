@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.10 (2026-09-25)
+
+### Bug Fixes
+
+- **starter-kit**: Keep abstention model authored
+  ([#2281](https://github.com/ditto-assistant/ditto-subnet/pull/2281),
+  [`c97f28c`](https://github.com/ditto-assistant/ditto-subnet/commit/c97f28c8f0a373b90cd48c1fe81479c4d433b752))
+
+
 ## v0.311.9 (2026-09-25)
 
 ### Bug Fixes
