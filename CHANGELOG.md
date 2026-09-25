@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.311.14 (2026-09-25)
+
+### Bug Fixes
+
+- **screener**: Clear proven unreachable preflight leads
+  ([#2288](https://github.com/ditto-assistant/ditto-subnet/pull/2288),
+  [`1a97adf`](https://github.com/ditto-assistant/ditto-subnet/commit/1a97adfe50b00a9daca169772e698765fc2b9aa4))
+
+
 ## v0.311.13 (2026-09-25)
 
 ### Bug Fixes
