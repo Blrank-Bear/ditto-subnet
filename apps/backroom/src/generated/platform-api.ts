@@ -21247,6 +21247,10 @@ export interface components {
             expected_agent_status: string;
             /** Expected Score Count */
             expected_score_count: number;
+            /** Historical Ruling Id */
+            historical_ruling_id?: string | null;
+            /** Historical Ruling Kind */
+            historical_ruling_kind?: ("ath_clear" | "screening_reject") | null;
             /**
              * Policy Version
              * @constant
@@ -21328,6 +21332,10 @@ export interface components {
              * Format: uuid
              */
             source_attempt_id: string;
+            /** Source Attestation */
+            source_attestation?: {
+                [key: string]: unknown;
+            } | null;
             /** Status */
             status: string;
             /** Target Node Id */
@@ -38565,6 +38573,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "x-admin-actor"?: string | null;
                 authorization?: string | null;
             };
             path?: never;
