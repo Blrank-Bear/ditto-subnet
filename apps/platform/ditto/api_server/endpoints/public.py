@@ -429,6 +429,7 @@ from ditto.db.queries.tickets import (
     get_score_priority_floors,
     score_priority_floor_rows_from_resolved_ledger,
 )
+from ditto.db.queries.transcript_mirror_settings import transcript_mirror_enabled
 from ditto.score_order import score_order_key
 from ditto.screener_policy_state import effective_screening_policy_version
 from ditto_screening_protocol.bench_v9 import V9EvidenceBenchVersion
@@ -8254,7 +8255,7 @@ async def bench_config(
     )
     transcript_template = (
         f"https://storage.googleapis.com/{public_bucket}/transcripts/{{sha256}}.json"
-        if public_bucket
+        if public_bucket and await transcript_mirror_enabled(session)
         else None
     )
     return PublicBenchConfigResponse(
