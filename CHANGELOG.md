@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.318.6 (2026-09-26)
+
+### Bug Fixes
+
+- **backroom**: Expose exact canary scheduling guards
+  ([#2378](https://github.com/ditto-assistant/ditto-subnet/pull/2378),
+  [`f828fcc`](https://github.com/ditto-assistant/ditto-subnet/commit/f828fcc2a743783b0d1f73a02ebeda740022bd6a))
+
+
 ## v0.318.5 (2026-09-26)
 
 ### Bug Fixes
