@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.318.4 (2026-09-26)
+
+### Bug Fixes
+
+- **screener**: Certify resolved L1 leads with complete L2 dossier
+  ([#2361](https://github.com/ditto-assistant/ditto-subnet/pull/2361),
+  [`e02bcf8`](https://github.com/ditto-assistant/ditto-subnet/commit/e02bcf888083388c6b6888b7d5cdac5748387c20))
+
+
 ## v0.318.3 (2026-09-26)
 
 ### Bug Fixes
