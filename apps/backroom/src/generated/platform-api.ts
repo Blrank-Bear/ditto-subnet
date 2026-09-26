@@ -4268,6 +4268,9 @@ export interface paths {
         /**
          * Accept Link Decide
          * @description Consume the single-use accept token: accept → authenticated, else failed.
+         *
+         *     The token is read only from the form body, so the answering request's
+         *     URL (and the history entry it leaves) carries just ``attempt``.
          */
         post: operations["accept_link_decide_api_v1_miner_auth_ditto_accept_post"];
         delete?: never;
@@ -14035,6 +14038,13 @@ export interface components {
              * @enum {string}
              */
             relay_delay_fingerprint_mode: "off" | "shadow";
+        };
+        /** Body_accept_link_decide_api_v1_miner_auth_ditto_accept_post */
+        Body_accept_link_decide_api_v1_miner_auth_ditto_accept_post: {
+            /** Decision */
+            decision: string;
+            /** T */
+            t: string;
         };
         /** Body_set_miner_avatar_api_v1_miner_avatars_post */
         Body_set_miner_avatar_api_v1_miner_avatars_post: {
@@ -42472,14 +42482,16 @@ export interface operations {
         parameters: {
             query: {
                 attempt: string;
-                t: string;
-                decision: string;
             };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_accept_link_decide_api_v1_miner_auth_ditto_accept_post"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
