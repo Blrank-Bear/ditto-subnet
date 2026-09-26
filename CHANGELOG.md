@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.318.5 (2026-09-26)
+
+### Bug Fixes
+
+- **screener**: Allow longer bounded L1 model turns
+  ([#2371](https://github.com/ditto-assistant/ditto-subnet/pull/2371),
+  [`ab723dd`](https://github.com/ditto-assistant/ditto-subnet/commit/ab723dd6c09590cba2161948bec3394f7bb15cd5))
+
+
 ## v0.318.4 (2026-09-26)
 
 ### Bug Fixes
