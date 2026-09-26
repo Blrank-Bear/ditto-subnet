@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.318.2 (2026-09-26)
+
+### Bug Fixes
+
+- **screener**: Expose bounded L3 tool failure subtype
+  ([#2355](https://github.com/ditto-assistant/ditto-subnet/pull/2355),
+  [`a2a6d2b`](https://github.com/ditto-assistant/ditto-subnet/commit/a2a6d2b572aaa89e733622015a8a856e3f4d3855))
+
+
 ## v0.318.1 (2026-09-26)
 
 ### Bug Fixes
