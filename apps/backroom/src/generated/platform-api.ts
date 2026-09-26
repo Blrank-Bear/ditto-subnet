@@ -10801,6 +10801,10 @@ export interface components {
             disposition: "ready" | "already_applied" | "conflict" | "not_found";
             /** Message */
             message: string;
+            /** Public Reason Code */
+            public_reason_code?: string | null;
+            /** Public Record Hash */
+            public_record_hash?: string | null;
             /**
              * Quarantine Id
              * Format: uuid
@@ -23377,6 +23381,11 @@ export interface components {
              * @description entry_hash of the last entry in this page.
              */
             head_hash?: string | null;
+            /**
+             * Moderation Signer Public Keys
+             * @description Ed25519 role public keys (hex) trusted to sign moderation events on this chain. The current key is first.
+             */
+            moderation_signer_public_keys?: string[];
         };
         /**
          * PublicBenchConfigResponse
