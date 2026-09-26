@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.318.7 (2026-09-26)
+
+### Bug Fixes
+
+- **screener**: Bound A/B signal in scorer flow analyzer
+  ([#2377](https://github.com/ditto-assistant/ditto-subnet/pull/2377),
+  [`a6bd0c4`](https://github.com/ditto-assistant/ditto-subnet/commit/a6bd0c4c76f9d9e04af65d1bc6ec01e393108a1e))
+
+
 ## v0.318.6 (2026-09-26)
 
 ### Bug Fixes
