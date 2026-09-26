@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.318.3 (2026-09-26)
+
+### Bug Fixes
+
+- **screener**: Guard v13 clearance with L3 disabled
+  ([#2358](https://github.com/ditto-assistant/ditto-subnet/pull/2358),
+  [`c702429`](https://github.com/ditto-assistant/ditto-subnet/commit/c702429d7ac2786dcc1e47068f372544863b2ca7))
+
+- **screener**: Preview enforced v13 clearance in report canaries
+  ([#2359](https://github.com/ditto-assistant/ditto-subnet/pull/2359),
+  [`5899f2c`](https://github.com/ditto-assistant/ditto-subnet/commit/5899f2c52c5abec006927ae4043a8da3df0af0b3))
+
+
 ## v0.318.2 (2026-09-26)
 
 ### Bug Fixes
