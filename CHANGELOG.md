@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.318.0 (2026-09-26)
+
+### Features
+
+- **screener**: Add isolated full-runtime report canaries
+  ([#2343](https://github.com/ditto-assistant/ditto-subnet/pull/2343),
+  [`60de114`](https://github.com/ditto-assistant/ditto-subnet/commit/60de114f4511ec8aa9e8571f038afc453a5c87ef))
+
+
 ## v0.317.1 (2026-09-25)
 
 ### Bug Fixes
