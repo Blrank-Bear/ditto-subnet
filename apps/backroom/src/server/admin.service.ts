@@ -164,6 +164,7 @@ import {
   expireRunningScreeningResponseSchema,
   rejectScreeningSubmissionInputSchema,
   rejectScreeningSubmissionResponseSchema,
+  screeningSubmissionFiltersSchema,
   resolveScreeningQuarantineInputSchema,
   resolveScreeningQuarantineResponseSchema,
   resolveScreeningDisputeInputSchema,
@@ -303,6 +304,8 @@ import {
   outlierEscalationDryRunSchema,
   outlierEscalationInputSchema,
   outlierEscalationSchema,
+  claimProvenanceCasesInputSchema,
+  claimProvenanceCasesSchema,
   queuePolicySettingsControlSchema,
   setInferenceConcurrencySettingsInputSchema,
   runtimeProfileArtifactSchema,
@@ -686,6 +689,8 @@ export async function scheduleL2ReportCanary(rawInput: unknown, actor: string) {
       target_node_id: input.targetNodeId,
       review_label: input.reviewLabel,
       run_mode: input.runMode,
+      historical_ruling_kind: input.historicalRulingKind,
+      historical_ruling_id: input.historicalRulingId,
       confirm_report_only: true,
     },
   })
@@ -1493,6 +1498,23 @@ export async function fetchOutlierEscalation(rawInput: unknown = {}) {
   return outlierEscalationSchema.parse(payload)
 }
 
+export async function fetchClaimProvenanceCases(rawInput: unknown) {
+  const input = claimProvenanceCasesInputSchema.parse(rawInput)
+  const params = new URLSearchParams({
+    artifact_sha256: input.artifactSha256,
+    run_id: input.runId,
+    include_unflagged: String(input.includeUnflagged),
+    limit: String(input.limit),
+  })
+  if (input.caseId) params.set('case_id', input.caseId)
+  if (input.finding) params.set('finding', input.finding)
+  const payload = await platformAdminRequest(
+    `/api/v1/admin/agents/${encodeURIComponent(input.agentId)}/claim-provenance?${params.toString()}`,
+    { retries: 1 },
+  )
+  return claimProvenanceCasesSchema.parse(payload)
+}
+
 export async function fetchOutlierEscalationDryRun(rawInput: unknown = {}) {
   const input = outlierEscalationDryRunInputSchema.parse(rawInput)
   const params = new URLSearchParams({ limit: String(input.limit) })
@@ -2260,12 +2282,30 @@ export async function fetchScreeningSubmissions(
   limit = 200,
   offset = 0,
   generation: 'active' | 'all' = 'active',
+  rawFilters: unknown = {},
 ) {
+  const filters = screeningSubmissionFiltersSchema.parse(rawFilters)
   const query = new URLSearchParams({
     generation,
     limit: String(limit),
     offset: String(offset),
   })
+  const scalar: Array<[string, string | undefined]> = [
+    ['agent_name', filters.agentName],
+    ['agent_name_prefix', filters.agentNamePrefix],
+    ['miner_hotkey', filters.minerHotkey],
+    ['miner_coldkey', filters.minerColdkey],
+    ['artifact_sha256', filters.artifactSha256],
+    ['submitted_after', filters.submittedAfter],
+    ['submitted_before', filters.submittedBefore],
+  ]
+  for (const [key, value] of scalar) {
+    if (value !== undefined) query.set(key, value)
+  }
+  for (const status of filters.agentStatus ?? []) query.append('agent_status', status)
+  for (const code of filters.screeningReasonCode ?? []) {
+    query.append('screening_reason_code', code)
+  }
   const payload = await platformAdminRequest(
     `/api/v1/admin/screening-submissions?${query.toString()}`,
   )

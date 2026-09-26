@@ -257,6 +257,7 @@ describe('Backroom MCP tools', () => {
         'issue_coding_shadow_ticket_set',
         'get_validator_weight_diagnostics',
         'get_agent_core_qualification',
+        'get_claim_provenance_cases',
         'get_agent_scores',
         'get_leaderboard',
         'get_ledger_epoch_snapshots',
@@ -274,6 +275,7 @@ describe('Backroom MCP tools', () => {
         'list_screening_disputes',
         'list_screening_source_files',
         'list_screening_submissions',
+        'search_submissions',
         'summarize_screening_failures',
         'read_screening_source_file',
         'record_v13_benign_approval',
@@ -402,7 +404,11 @@ describe('Backroom MCP tools', () => {
     // The taxonomy's report-only rate_limit_bursts note adds about 80 bytes.
     // The bounded outlier-escalation dry-run read measures 169,755 bytes;
     // retain about 0.5 KB headroom.
-    expect(JSON.stringify(response.tools).length).toBeLessThanOrEqual(170_300)
+    // The search_submissions lookup (server-side filters, #560) brings the
+    // measured catalog to 171,685 bytes. The exact-key per-case
+    // claim-provenance read (#1852) adds a seven-field input; measured
+    // 172,734 bytes together. Keep the same ~0.5 KB headroom.
+    expect(JSON.stringify(response.tools).length).toBeLessThanOrEqual(173_250)
     const descriptions = response.tools.map((tool) => tool.description ?? '')
     // Includes concise rollout and protected-policy controls; tutorials live
     // in get_backroom_tool_help, not here. The budget admits the screener
@@ -431,8 +437,9 @@ describe('Backroom MCP tools', () => {
       // plus later main summaries measured 29,329. Two short treasury
       // shadow-policy descriptions bring the measured total to 29,850.
       // The taxonomy's rate_limit_bursts catalog note measured 30,520; the
-      // one-line outlier-escalation dry-run read brings it to 30,794.
-      31_200,
+      // one-line outlier-escalation dry-run read brings it to 30,794, and the
+      // claim-provenance read summary to 30,878.
+      31_300,
     )
     expect(Math.max(...descriptions.map((value) => value.length))).toBeLessThanOrEqual(600)
     expect(
@@ -1205,6 +1212,7 @@ describe('Backroom MCP tools', () => {
       list_screening_disputes: { maxLimit: 200, maxDefault: 50 },
       list_screening_source_files: { maxLimit: 512, maxDefault: 512 },
       list_screening_submissions: { maxLimit: 200, maxDefault: 50 },
+      search_submissions: { maxLimit: 200, maxDefault: 20 },
       search_screening_source: { maxLimit: 200, maxDefault: 50 },
       list_stuck_submissions: { maxLimit: 200, maxDefault: 10 },
       list_lease_revocations: { maxLimit: 200, maxDefault: 50 },
@@ -1291,6 +1299,20 @@ describe('Backroom MCP tools', () => {
         })
       }
     }
+    // Search is for finding a named row, so it defaults to the narrow
+    // identity projection and to every generation.
+    const search = response.tools.find((candidate) => candidate.name === 'search_submissions')
+    const searchProperties = search?.inputSchema?.properties as
+      | Record<string, { default?: unknown; enum?: Array<string> }>
+      | undefined
+    expect(searchProperties?.detail).toMatchObject({
+      default: 'identity',
+      enum: ['identity', 'summary', 'full'],
+    })
+    expect(searchProperties?.generation).toMatchObject({
+      default: 'all',
+      enum: ['active', 'all'],
+    })
 
     await client.close()
     await server.close()
@@ -3728,6 +3750,137 @@ describe('Backroom MCP tools', () => {
     }
   })
 
+  const claimProvenancePayload = () => ({
+    agent_id: '11111111-2222-4333-8444-555555555555',
+    artifact_sha256: 'ae'.repeat(32),
+    agent_status: 'scored',
+    validator_hotkey: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY',
+    run_id: 'run_gate_1',
+    bench_version: 13,
+    composite: 0.7,
+    generated_at: '2026-09-23T00:19:00Z',
+    posture: 'shadow',
+    claim_provenance: { posture: 'shadow', settled_cases: 153, not_model_emitted_cases: 4 },
+    case_id: null,
+    finding: 'served_text_not_model_emitted',
+    include_unflagged: false,
+    per_case_available: true,
+    total_cases: 250,
+    matched_cases: 4,
+    malformed_cases: 0,
+    limit: 50,
+    truncated: false,
+    cases: [
+      {
+        case_index: 17,
+        case_id: 'memory-9f3a-0017',
+        category: 'temporal_reasoning',
+        kind: 'memory',
+        score: 1,
+        correct: true,
+        expected: ['must-not-escape'],
+        gate_notes: [
+          { gate: 'served_text_not_model_emitted', zeroing: true, note_id: '0123456789abcdef' },
+        ],
+        claim_provenance: {
+          posture: 'shadow',
+          findings: ['served_text_not_model_emitted'],
+          completions: 2,
+          unattributed_calls: 0,
+          tool_results: 0,
+          claim_tokens: 3,
+          complete: true,
+          model_emitted: false,
+          answer_in_prompt: false,
+        },
+        catalog: null,
+        relation: null,
+        twin_group: null,
+        cost_factor: null,
+        scorer_notes: [
+          'v13 claim provenance flagged (served_text_not_model_emitted); shadow posture, score unchanged',
+        ],
+      },
+    ],
+    not_persisted: [
+      'credited_response_field',
+      'claim_token_comparison',
+      'attributed_completion_ids',
+      'normalization_explanation',
+    ],
+    not_persisted_reason: 'absence here is not evidence either way.',
+  })
+
+  it('reads per-case claim provenance for an exact agent, artifact and run', async () => {
+    process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(claimProvenancePayload()))
+    vi.stubGlobal('fetch', fetchMock)
+    const { client, server } = await connect([BACKROOM_READ_SCOPE])
+    try {
+      const response = await client.callTool({
+        name: 'get_claim_provenance_cases',
+        arguments: {
+          agentId: '11111111-2222-4333-8444-555555555555',
+          artifactSha256: 'ae'.repeat(32),
+          runId: 'run_gate_1',
+          finding: 'served_text_not_model_emitted',
+        },
+      })
+
+      expect(response.isError).not.toBe(true)
+      const body = readJsonResult(response) as ReturnType<typeof claimProvenancePayload>
+      expect(body).toMatchObject({ matched_cases: 4, total_cases: 250, truncated: false })
+      expect(body.cases[0].claim_provenance).toMatchObject({
+        model_emitted: false,
+        claim_tokens: 3,
+      })
+      expect(body.cases[0].gate_notes[0].note_id).toBe('0123456789abcdef')
+      expect(body.not_persisted).toContain('claim_token_comparison')
+      // The answer key never survives the Backroom schema, even if sent.
+      expect(JSON.stringify(body)).not.toContain('must-not-escape')
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+      expect(String(url)).toBe(
+        'https://platform-api.heyditto.ai/api/v1/admin/agents/11111111-2222-4333-8444-555555555555/claim-provenance?' +
+          `artifact_sha256=${'ae'.repeat(32)}&run_id=run_gate_1&include_unflagged=false&limit=50&finding=served_text_not_model_emitted`,
+      )
+      expect(init.method ?? 'GET').toBe('GET')
+
+      const help = await client.callTool({
+        name: 'get_backroom_tool_help',
+        arguments: { tool: 'get_claim_provenance_cases' },
+      })
+      const guidance = (readJsonResult(help) as { guidance: string }).guidance
+      expect(guidance).toContain('not_persisted')
+      expect(guidance).toContain('flagged_case_count')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      await client.close()
+      await server.close()
+    }
+  })
+
+  it('refuses a non-exact artifact key before calling the Platform', async () => {
+    process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const { client, server } = await connect([BACKROOM_READ_SCOPE])
+    try {
+      const response = await client.callTool({
+        name: 'get_claim_provenance_cases',
+        arguments: {
+          agentId: '11111111-2222-4333-8444-555555555555',
+          artifactSha256: 'AE'.repeat(32),
+          runId: 'run_gate_1',
+        },
+      })
+      expect(response.isError).toBe(true)
+      expect(fetchMock).not.toHaveBeenCalled()
+    } finally {
+      await client.close()
+      await server.close()
+    }
+  })
+
   it('reads the failure taxonomy and keeps an unknown route unknown', async () => {
     process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
     const fetchMock = vi.fn().mockResolvedValueOnce(
@@ -5894,6 +6047,112 @@ describe('Backroom MCP tools', () => {
       'https://platform-api.heyditto.ai/api/v1/admin/screening-submissions?generation=active&limit=17&offset=34',
       expect.any(Object),
     )
+
+    await client.close()
+    await server.close()
+  })
+
+  it('searches screening submissions server-side with the identity projection', async () => {
+    process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+    const row = {
+      agent_id: '90cb5697-cbc1-40f4-a27e-439a7986a054',
+      miner_hotkey: '5Miner',
+      miner_coldkey: '5Cold',
+      agent_name: 'moonlight_v1',
+      agent_version: 2,
+      artifact_sha256: 'ab'.repeat(32),
+      agent_status: 'scored',
+      screening_policy_version: 9,
+      screening_reason: null,
+      screening_reason_code: null,
+      submitted_at: '2026-07-19T12:00:00Z',
+      attempts: [
+        {
+          attempt_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          policy_version: 9,
+          status: 'passed',
+          screener_hotkey: '5Screener',
+          started_at: '2026-07-19T12:01:00Z',
+          deadline: '2026-07-19T13:11:00Z',
+          finished_at: '2026-07-19T12:05:00Z',
+          reason: null,
+          reason_code: 'behavioral-oracle-passed',
+        },
+      ],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({ items: [row], count: 1, generation: 'all', active_bench_version: 12 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { client, server } = await connect([BACKROOM_READ_SCOPE])
+    const response = await client.callTool({
+      name: 'search_submissions',
+      arguments: {
+        agentNamePrefix: 'moon_light%',
+        minerColdkey: '5Cold',
+        agentStatus: ['scored', 'banned'],
+        screeningReasonCode: ['docker-build'],
+        submittedAfter: '2026-07-01T00:00:00Z',
+      },
+    })
+
+    expect(response.isError).not.toBe(true)
+    expect(readJsonResult(response)).toEqual({
+      items: [
+        {
+          agent_id: row.agent_id,
+          agent_name: 'moonlight_v1',
+          agent_version: 2,
+          agent_status: 'scored',
+          submitted_at: '2026-07-19T12:00:00Z',
+          artifact_sha256: 'ab'.repeat(32),
+        },
+      ],
+      count: 1,
+      generation: 'all',
+      active_bench_version: 12,
+      detail: 'identity',
+      limit: 20,
+      offset: 0,
+    })
+    const [url] = fetchMock.mock.calls[0] as [string]
+    const query = new URL(url).searchParams
+    expect(new URL(url).pathname).toBe('/api/v1/admin/screening-submissions')
+    expect(query.get('generation')).toBe('all')
+    expect(query.get('limit')).toBe('20')
+    // Metacharacters travel literally; Platform owns LIKE escaping.
+    expect(query.get('agent_name_prefix')).toBe('moon_light%')
+    expect(query.get('miner_coldkey')).toBe('5Cold')
+    expect(query.getAll('agent_status')).toEqual(['scored', 'banned'])
+    expect(query.getAll('screening_reason_code')).toEqual(['docker-build'])
+    expect(query.get('submitted_after')).toBe('2026-07-01T00:00:00Z')
+    expect(query.has('agent_name')).toBe(false)
+    expect(readTextResult(response)).not.toContain('attempts')
+
+    await client.close()
+    await server.close()
+  })
+
+  it('refuses an unfiltered or malformed submission search without calling Platform', async () => {
+    process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const { client, server } = await connect([BACKROOM_READ_SCOPE])
+
+    const unfiltered = await client.callTool({ name: 'search_submissions', arguments: {} })
+    expect(unfiltered.isError).toBe(true)
+    expect(readTextResult(unfiltered)).toContain('list_screening_submissions')
+
+    for (const args of [
+      { artifactSha256: 'ab'.repeat(31) },
+      { agentStatus: ['not-a-status'] },
+      { agentName: 'x'.repeat(65) },
+      { submittedAfter: '2026-07-01T00:00:00' },
+    ]) {
+      const response = await client.callTool({ name: 'search_submissions', arguments: args })
+      expect(response.isError, JSON.stringify(args)).toBe(true)
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
 
     await client.close()
     await server.close()

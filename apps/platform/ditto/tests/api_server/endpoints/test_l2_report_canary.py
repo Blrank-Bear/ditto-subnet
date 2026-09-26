@@ -22,7 +22,16 @@ from ditto.api_models.l2_report_canary import (
 )
 from ditto.api_server.endpoints import l2_report_canary as endpoints
 from ditto.api_server.storage import S3StorageClient
-from ditto.db.models import ScreenerL2ReportCanary, ScreenerNode, ScreeningAttempt
+from ditto.api_server.storage.models import VerifiedObject
+from ditto.db.models import (
+    Agent,
+    AthReview,
+    AthReviewAction,
+    ScreenerL2ReportCanary,
+    ScreenerNode,
+    ScreeningAttempt,
+    ScreeningReviewEvent,
+)
 from ditto.tests.api_server.endpoints.test_screener import _seed_agent, _seed_score
 from ditto_screening_protocol import ScoredRuntimeEvidenceLease
 
@@ -50,6 +59,319 @@ def test_l2_canary_schedule_accepts_uuid_strings_from_http_json() -> None:
     )
 
 
+def test_historical_canary_request_requires_matching_source_only_ruling() -> None:
+    fields = {
+        "request_id": str(uuid4()),
+        "agent_id": str(uuid4()),
+        "source_attempt_id": str(uuid4()),
+        "artifact_sha256": "a" * 64,
+        "policy_version": 13,
+        "expected_agent_status": "live",
+        "expected_score_count": 1,
+        "target_node_id": "subnet-screener-1",
+        "review_label": "candidate_clear",
+        "confirm_report_only": True,
+    }
+    with pytest.raises(ValueError, match="kind and id"):
+        L2CanaryScheduleRequest.model_validate(
+            {**fields, "historical_ruling_kind": "ath_clear"}
+        )
+    with pytest.raises(ValueError, match="source-only review label"):
+        L2CanaryScheduleRequest.model_validate(
+            {
+                **fields,
+                "run_mode": "full_runtime",
+                "historical_ruling_kind": "ath_clear",
+                "historical_ruling_id": str(uuid4()),
+            }
+        )
+    with pytest.raises(ValueError, match="source-only review label"):
+        L2CanaryScheduleRequest.model_validate(
+            {
+                **fields,
+                "historical_ruling_kind": "screening_reject",
+                "historical_ruling_id": str(uuid4()),
+            }
+        )
+
+
+@pytest.mark.asyncio
+async def test_historical_ruling_matches_exact_source() -> None:
+    ruling_id, action_id, agent_id, attempt_id = uuid4(), uuid4(), uuid4(), uuid4()
+    sha = "a" * 64
+    now = datetime.now(UTC)
+    row = cast(
+        ScreenerL2ReportCanary,
+        SimpleNamespace(
+            agent_id=agent_id,
+            source_attempt_id=attempt_id,
+            artifact_sha256=sha,
+            policy_version=13,
+            review_label="candidate_clear",
+            source_attestation={
+                "kind": "ath_clear",
+                "ruling_id": str(ruling_id),
+                "action_id": str(action_id),
+            },
+        ),
+    )
+    ruling = SimpleNamespace(
+        agent_id=agent_id,
+        original_policy_version=13,
+        status="resolved",
+        resolution="clear",
+        resolved_at=now,
+        resolved_by="human-reviewer",
+        resolution_reason="Exact artifact independently cleared",
+        original_evidence={"sha256": sha},
+    )
+    action = SimpleNamespace(
+        action_id=action_id,
+        action="clear",
+        created_at=now,
+        actor="human-reviewer",
+        reason="Exact artifact independently cleared",
+    )
+    session = cast(
+        AsyncSession,
+        SimpleNamespace(
+            get=AsyncMock(return_value=ruling),
+            scalar=AsyncMock(return_value=action),
+        ),
+    )
+    assert await endpoints._historical_ruling_matches(session, row)
+    session.get.assert_awaited_with(AthReview, ruling_id)  # type: ignore[attr-defined]
+    action.action_id = uuid4()  # Same review was reopened and cleared again.
+    assert not await endpoints._historical_ruling_matches(session, row)
+    action.action_id = action_id
+    ruling.original_evidence["sha256"] = "b" * 64
+    assert not await endpoints._historical_ruling_matches(session, row)
+    ruling.original_evidence["sha256"] = sha
+    ruling.agent_id = uuid4()
+    assert not await endpoints._historical_ruling_matches(session, row)
+
+    row.review_label = "known_reject"
+    assert row.source_attestation is not None
+    row.source_attestation["kind"] = "screening_reject"
+    event = SimpleNamespace(
+        agent_id=agent_id,
+        attempt_id=attempt_id,
+        policy_version=13,
+        event_kind="manual",
+        outcome="reject",
+        effective_decision="reject",
+        artifact_sha256=sha,
+    )
+    session.get.return_value = event  # type: ignore[attr-defined]
+    assert await endpoints._historical_ruling_matches(session, row)
+    session.get.assert_awaited_with(  # type: ignore[attr-defined]
+        ScreeningReviewEvent, ruling_id
+    )
+    event.attempt_id = uuid4()
+    assert not await endpoints._historical_ruling_matches(session, row)
+
+
+@pytest.mark.asyncio
+async def test_current_object_attestation_rejects_replacement() -> None:
+    agent_id = uuid4()
+    agent = cast(Agent, SimpleNamespace(agent_id=agent_id, size_bytes=123))
+    storage = cast(
+        S3StorageClient,
+        SimpleNamespace(
+            verify_object_sha256=AsyncMock(
+                return_value=VerifiedObject(size_bytes=123, sha256="a" * 64)
+            )
+        ),
+    )
+    assert await endpoints._current_object_matches(storage, agent, "a" * 64) == (
+        True,
+        123,
+    )
+    storage.verify_object_sha256.assert_awaited_with(  # type: ignore[attr-defined]
+        key=f"{agent_id}/agent.tar.gz", expected_size_bytes=123
+    )
+    storage.verify_object_sha256.return_value = VerifiedObject(  # type: ignore[attr-defined]
+        size_bytes=123, sha256="b" * 64
+    )
+    matches, _ = await endpoints._current_object_matches(storage, agent, "a" * 64)
+    assert matches is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["none", "object_drift", "ruling_replaced"])
+async def test_null_sha_historical_clear_replay_rehashes_at_claim(
+    session_maker: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+) -> None:
+    sha = "a" * 64
+    agent_id = await _seed_agent(session_maker, status=AgentStatus.SCORED, sha256=sha)
+    await _seed_score(session_maker, agent_id=agent_id)
+    attempt_id, ruling_id, request_id = uuid4(), uuid4(), uuid4()
+    node_id = f"canary-test-{uuid4().hex[:12]}"
+    now = datetime.now(UTC)
+    async with session_maker() as session, session.begin():
+        session.add_all(
+            [
+                ScreenerNode(
+                    environment="prod",
+                    node_id=node_id,
+                    provider="hetzner",
+                    provider_resource_id=node_id,
+                    screener_hotkey=f"hotkey-{node_id}",
+                    token_hash="f" * 64,
+                    token_expires_at=now + timedelta(hours=1),
+                    status="active",
+                    capacity=1,
+                ),
+                ScreeningAttempt(
+                    attempt_id=attempt_id,
+                    agent_id=agent_id,
+                    artifact_sha256=None,
+                    screener_hotkey=f"hotkey-{node_id}",
+                    policy_version=13,
+                    status="passed",
+                    started_at=now - timedelta(minutes=1),
+                    deadline=now,
+                    finished_at=now,
+                ),
+                AthReview(
+                    review_id=ruling_id,
+                    agent_id=agent_id,
+                    status="resolved",
+                    resolved_at=now,
+                    resolved_by="human-reviewer",
+                    resolution="clear",
+                    resolution_reason="Exact artifact independently cleared",
+                    original_policy_version=13,
+                    original_evidence={"sha256": sha},
+                    algorithm_provenance={},
+                ),
+                AthReviewAction(
+                    action_id=uuid4(),
+                    review_id=ruling_id,
+                    action="clear",
+                    reason="Exact artifact independently cleared",
+                    actor="human-reviewer",
+                    evidence={},
+                    created_at=now,
+                ),
+            ]
+        )
+    monkeypatch.setattr(endpoints, "arrival_bench_version", AsyncMock(return_value=13))
+    storage = cast(
+        S3StorageClient,
+        SimpleNamespace(
+            verify_object_sha256=AsyncMock(
+                return_value=VerifiedObject(size_bytes=123, sha256=sha)
+            ),
+            presigned_get_url=AsyncMock(return_value="https://example.test/source"),
+        ),
+    )
+    payload = L2CanaryScheduleRequest(
+        request_id=request_id,
+        agent_id=agent_id,
+        source_attempt_id=attempt_id,
+        artifact_sha256=sha,
+        policy_version=13,
+        expected_agent_status="scored",
+        expected_score_count=1,
+        target_node_id=node_id,
+        review_label="candidate_clear",
+        historical_ruling_kind="ath_clear",
+        historical_ruling_id=ruling_id,
+        confirm_report_only=True,
+    )
+    async with session_maker() as session:
+        scheduled = await endpoints.schedule_l2_report_canary(
+            payload, None, session, storage, "operator@example.com"
+        )
+    assert scheduled.source_attestation is not None
+    assert scheduled.source_attestation["scope"].startswith("current-object-only")
+    assert scheduled.source_attestation["actor"] == "operator@example.com"
+    assert storage.verify_object_sha256.await_count == 1  # type: ignore[attr-defined]
+    if change == "object_drift":
+        storage.verify_object_sha256.return_value = VerifiedObject(  # type: ignore[attr-defined]
+            size_bytes=123, sha256="b" * 64
+        )
+    elif change == "ruling_replaced":
+        later = now + timedelta(seconds=1)
+        async with session_maker() as session, session.begin():
+            review = await session.get(AthReview, ruling_id, with_for_update=True)
+            assert review is not None
+            review.resolved_at = later
+            review.resolved_by = "second-reviewer"
+            review.resolution_reason = "A newer independent clear ruling"
+            session.add(
+                AthReviewAction(
+                    action_id=uuid4(),
+                    review_id=ruling_id,
+                    action="clear",
+                    reason="A newer independent clear ruling",
+                    actor="second-reviewer",
+                    evidence={},
+                    created_at=later,
+                )
+            )
+    monkeypatch.setattr(
+        endpoints,
+        "_resolve_effective_review_settings",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                revision=136,
+                checksum="d" * 64,
+                settings=SimpleNamespace(
+                    source_review_timeout_seconds=3600, timeout_seconds=1800
+                ),
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        endpoints,
+        "scored_runtime_evidence_for_lease",
+        AsyncMock(return_value=_packet(attempt_id, sha)),
+    )
+    request = cast(
+        Request, SimpleNamespace(state=SimpleNamespace(screener_node_id=node_id))
+    )
+    async with session_maker() as session:
+        claimed = await endpoints.claim_l2_report_canary(
+            L2CanaryClaimRequest(
+                instance_id=node_id + "-worker-1",
+                settings_revision=136,
+                settings_checksum="d" * 64,
+            ),
+            request,
+            Response(),
+            "hotkey",
+            session,
+            storage,
+        )
+    assert (claimed is None) == (change != "none")
+    async with session_maker() as session:
+        row = await session.get(ScreenerL2ReportCanary, scheduled.canary_id)
+        agent = await session.get(Agent, agent_id)
+        attempt = await session.get(ScreeningAttempt, attempt_id)
+    assert row is not None
+    assert row.status == ("leased" if change == "none" else "incomplete")
+    assert (
+        row.error_code
+        == {
+            "none": None,
+            "object_drift": "source-object-drift",
+            "ruling_replaced": "exact-source-changed",
+        }[change]
+    )
+    assert row.report is None
+    assert agent is not None and agent.status == AgentStatus.SCORED
+    assert attempt is not None and attempt.artifact_sha256 is None
+    if change == "none":
+        assert claimed is not None
+        assert claimed.artifact_sha256 == sha
+        assert storage.verify_object_sha256.await_count == 2  # type: ignore[attr-defined]
+        assert storage.presigned_get_url.await_count == 1  # type: ignore[attr-defined]
+
+
 def _packet(attempt_id, sha: str) -> ScoredRuntimeEvidenceLease:
     revision = "a" * 40
     keys = ("SAFE_KEY",)
@@ -69,6 +391,24 @@ def _packet(attempt_id, sha: str) -> ScoredRuntimeEvidenceLease:
         validator_count=3,
         observed_at=int(datetime.now(UTC).timestamp()),
     )
+
+
+@pytest.mark.parametrize(
+    ("timeout", "l2_timeout", "run_mode", "expected_seconds"),
+    [
+        (600, 1200, "source_only", 45 * 60),
+        (3600, 1800, "source_only", 100 * 60),
+        (3600, 1800, "full_runtime", 150 * 60),
+    ],
+)
+def test_report_only_lease_covers_review_and_bounded_preparation(
+    timeout: int, l2_timeout: int, run_mode: str, expected_seconds: int
+) -> None:
+    assert endpoints._canary_lease(
+        source_review_timeout_seconds=timeout,
+        l2_timeout_seconds=l2_timeout,
+        run_mode=run_mode,
+    ) == timedelta(seconds=expected_seconds)
 
 
 @pytest.mark.asyncio
@@ -225,7 +565,15 @@ async def test_l2_canary_lease_duplicate_late_and_authority_isolation(
     monkeypatch.setattr(
         endpoints,
         "_resolve_effective_review_settings",
-        AsyncMock(return_value=SimpleNamespace(revision=124, checksum="d" * 64)),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                revision=124,
+                checksum="d" * 64,
+                settings=SimpleNamespace(
+                    source_review_timeout_seconds=3600, timeout_seconds=1800
+                ),
+            )
+        ),
     )
     request = cast(
         Request, SimpleNamespace(state=SimpleNamespace(screener_node_id=node_id))
@@ -255,6 +603,8 @@ async def test_l2_canary_lease_duplicate_late_and_authority_isolation(
     assert claim.source_attempt_id == attempt_id
     assert claim.run_mode == run_mode
     assert claim.scored_runtime_evidence == packet
+    expected_lease = timedelta(minutes=150 if run_mode == "full_runtime" else 100)
+    assert abs((claim.lease_expires_at - now - expected_lease).total_seconds()) < 30
     async with session_maker() as session:
         view = await endpoints.get_l2_report_canary(claim.canary_id, None, session)
     assert view.lease_expires_at == claim.lease_expires_at
@@ -513,7 +863,15 @@ async def test_unready_worker_skips_an_older_full_runtime_row(
     monkeypatch.setattr(
         endpoints,
         "_resolve_effective_review_settings",
-        AsyncMock(return_value=SimpleNamespace(revision=124, checksum="d" * 64)),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                revision=124,
+                checksum="d" * 64,
+                settings=SimpleNamespace(
+                    source_review_timeout_seconds=3600, timeout_seconds=1800
+                ),
+            )
+        ),
     )
     request = cast(
         Request, SimpleNamespace(state=SimpleNamespace(screener_node_id=node_id))
