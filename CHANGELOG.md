@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.318.1 (2026-09-26)
+
+### Bug Fixes
+
+- **screener**: Align v13 prompts and repair invalid verdicts
+  ([#2349](https://github.com/ditto-assistant/ditto-subnet/pull/2349),
+  [`eda0d59`](https://github.com/ditto-assistant/ditto-subnet/commit/eda0d59187b5973b82fa14012f656b88d4d5a461))
+
+- **screener**: Correct no-tool adjudicator turns
+  ([#2350](https://github.com/ditto-assistant/ditto-subnet/pull/2350),
+  [`b9e6298`](https://github.com/ditto-assistant/ditto-subnet/commit/b9e6298d9f7f5e3f45d9337944ac2d811081ab9c))
+
+
 ## v0.318.0 (2026-09-26)
 
 ### Features
