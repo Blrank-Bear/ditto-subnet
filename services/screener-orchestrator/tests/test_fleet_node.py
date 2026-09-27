@@ -402,6 +402,49 @@ def test_stop_request_prevents_new_claims(tmp_path: Path) -> None:
     assert node.run() == 0
 
 
+def test_transient_platform_error_does_not_stop_the_claim_loop(
+    tmp_path: Path,
+) -> None:
+    from dataclasses import replace
+
+    node = FleetNode(replace(_settings(tmp_path), once=False, interval_seconds=0.01))
+    control = _Control()
+    control.jobs["runtime"] = []
+    control.jobs["build"] = []
+    healthy_settings = control.settings
+    calls = 0
+
+    def settings() -> ChannelSettings:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ControllerError("Platform node GET failed with HTTP 502")
+        node.request_stop()
+        return healthy_settings()
+
+    control.settings = settings  # type: ignore[method-assign]
+    node.control = control  # type: ignore[assignment]
+
+    assert node.run() == 0
+    assert calls == 2
+
+
+def test_once_mode_still_surfaces_platform_errors(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    node = FleetNode(replace(_settings(tmp_path), once=True))
+    control = _Control()
+
+    def settings() -> ChannelSettings:
+        raise ControllerError("Platform node transport failed")
+
+    control.settings = settings  # type: ignore[method-assign]
+    node.control = control  # type: ignore[assignment]
+
+    with pytest.raises(ControllerError):
+        node.run()
+
+
 def test_local_partition_ceiling_does_not_claim_beyond_budget(tmp_path: Path) -> None:
     from concurrent.futures import Future
     from dataclasses import replace

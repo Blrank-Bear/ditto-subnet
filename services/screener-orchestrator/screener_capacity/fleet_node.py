@@ -899,7 +899,17 @@ class FleetNode:
     def run(self) -> int:
         try:
             while not self.stop_requested.is_set():
-                handled = self.tick()
+                try:
+                    handled = self.tick()
+                except ControllerError as error:
+                    # Leaving the loop would block in the executor shutdown
+                    # below until every in-flight job drains (up to an hour),
+                    # claiming nothing, so a transient Platform error waits a
+                    # poll interval and retries instead.
+                    if self.settings.once:
+                        raise
+                    print(f"fleet tick failed: {error}", file=sys.stderr)
+                    handled = False
                 if self.settings.once:
                     return 0
                 if not handled:
