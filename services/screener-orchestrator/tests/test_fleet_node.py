@@ -394,6 +394,48 @@ def test_source_review_uses_image_project_environment(
     assert commands[0][user_index + 1] == f"{os.getuid()}:{os.getgid()}"
 
 
+def test_source_review_timeout_removes_container_and_reports_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands: list[list[str]] = []
+    updates: list[dict[str, object]] = []
+
+    class Control:
+        def update(self, *_args: object, **kwargs: object) -> None:
+            updates.append(kwargs)
+
+        def status(self, *_args: object) -> str:
+            return "running"
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[:2] == ["docker", "run"]:
+            raise subprocess.TimeoutExpired(command, float(kwargs["timeout"]))  # type: ignore[arg-type]
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    node = FleetNode(_settings(tmp_path))
+    node.control = Control()  # type: ignore[assignment]
+    monkeypatch.setattr(subprocess, "run", run)
+
+    node._run_source_review(
+        {
+            "review_id": "12345678-1234-1234-1234-123456789abc",
+            "attempt_id": "22345678-1234-1234-1234-123456789abc",
+            "artifact_sha256": "a" * 64,
+            "job_token": "job-token",
+            "image_reference": "registry.invalid/ditto/screener@sha256:" + "b" * 64,
+        }
+    )
+
+    name = commands[0][commands[0].index("--name") + 1]
+    assert commands[1] == ["docker", "rm", "-f", name]
+    assert updates[-1] == {
+        "status": "fallback_required",
+        "resource_id": name,
+        "error_code": "FLEET_SOURCE_REVIEW_TIMEOUT",
+    }
+
+
 def test_stop_request_prevents_new_claims(tmp_path: Path) -> None:
     node = FleetNode(_settings(tmp_path))
     node.control = pytest.fail  # type: ignore[assignment]

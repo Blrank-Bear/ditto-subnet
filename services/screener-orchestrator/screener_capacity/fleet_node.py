@@ -819,19 +819,36 @@ class FleetNode:
                 "ditto_screener.source_review_job",
             ]
         )
-        result = subprocess.run(
-            command,
-            env=environment,
-            capture_output=True,
-            # Leave a larger trusted-host tail than the worker's 120-second
-            # poll grace so a deadline-exhausted L4 can commit and exit before
-            # the host kills the container.
-            timeout=(
-                self.settings.source_review_timeout_seconds
-                + _SOURCE_REVIEW_PROCESS_GRACE_SECONDS
-            ),
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                env=environment,
+                capture_output=True,
+                # Leave a larger trusted-host tail than the worker's 120-second
+                # poll grace so a deadline-exhausted L4 can commit and exit before
+                # the host kills the container.
+                timeout=(
+                    self.settings.source_review_timeout_seconds
+                    + _SOURCE_REVIEW_PROCESS_GRACE_SECONDS
+                ),
+                check=False,
+            )
+            error_code = (
+                "FLEET_SOURCE_REVIEW_FAILED"
+                if result.returncode != 0
+                else "FLEET_SOURCE_REVIEW_INCOMPLETE"
+            )
+        except subprocess.TimeoutExpired:
+            # The timeout kills only the `docker run` client; the container
+            # keeps running and holding its slot's resources until removed.
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                subprocess.run(
+                    ["docker", "rm", "-f", name],
+                    capture_output=True,
+                    timeout=30,
+                    check=False,
+                )
+            error_code = "FLEET_SOURCE_REVIEW_TIMEOUT"
         status = self.control.status("source_review", review_id)
         if status not in _TERMINAL:
             self.control.update(
@@ -839,11 +856,7 @@ class FleetNode:
                 review_id,
                 status="fallback_required",
                 resource_id=name,
-                error_code=(
-                    "FLEET_SOURCE_REVIEW_FAILED"
-                    if result.returncode != 0
-                    else "FLEET_SOURCE_REVIEW_INCOMPLETE"
-                ),
+                error_code=error_code,
             )
 
     def tick(self) -> bool:
