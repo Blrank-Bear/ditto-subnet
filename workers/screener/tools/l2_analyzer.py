@@ -9,6 +9,7 @@ container.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -421,6 +422,370 @@ def rust_structure(request: dict[str, object]) -> object:
     }
 
 
+# Python has no single process entry the way a Rust binary has `fn main`: web
+# frameworks call registered handlers themselves. These registrations are the
+# served-path roots of a Python harness, alongside a module-level `main`.
+_PY_ROUTE_DECORATORS = frozenset(
+    {"get", "post", "put", "patch", "delete", "head", "options", "route"}
+    | {"api_route", "websocket"}
+)
+_PY_ROUTE_REGISTRARS = frozenset(
+    {"add_api_route", "add_url_rule", "add_route", "add_api_websocket_route"}
+)
+_PY_HANDLER_METHOD = re.compile(r"do_[A-Z]+")
+_PY_DOTTED = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
+
+
+def _py_module_path(path: Path) -> list[str]:
+    parts = list(path.relative_to(ROOT).with_suffix("").parts)
+    if parts and parts[-1] == "__init__":
+        parts.pop()
+    return parts
+
+
+def _py_dotted(node: ast.expr) -> str | None:
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    parts.append(node.id)
+    return ".".join(reversed(parts))
+
+
+def _py_module_statements(body: list[ast.stmt]) -> list[ast.stmt]:
+    """Module-scope statements, including those nested in if/try/with blocks."""
+    statements: list[ast.stmt] = []
+    stack = list(reversed(body))
+    while stack:
+        statement = stack.pop()
+        statements.append(statement)
+        if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        if isinstance(statement, ast.ClassDef):
+            continue
+        nested: list[ast.stmt] = []
+        for field in ("body", "orelse", "finalbody"):
+            nested.extend(getattr(statement, field, []) or [])
+        for handler in getattr(statement, "handlers", []) or []:
+            nested.extend(handler.body)
+        stack.extend(reversed(nested))
+    return statements
+
+
+def _py_imports(
+    statements: list[ast.stmt], module: list[str], package: bool
+) -> dict[str, str]:
+    """Map each module-scope import binding to the dotted name it refers to."""
+    bindings: dict[str, str] = {}
+    for statement in statements:
+        if isinstance(statement, ast.Import):
+            for alias in statement.names:
+                if alias.asname:
+                    bindings[alias.asname] = alias.name
+                else:
+                    head = alias.name.split(".", 1)[0]
+                    bindings[head] = head
+        elif isinstance(statement, ast.ImportFrom):
+            base: list[str] = []
+            if statement.level:
+                anchor = module if package else module[:-1]
+                if statement.level - 1 > len(anchor):
+                    continue
+                base = anchor[: len(anchor) - (statement.level - 1)]
+            if statement.module:
+                base = [*base, *statement.module.split(".")]
+            for alias in statement.names:
+                if alias.name == "*" or not base:
+                    continue
+                bindings[alias.asname or alias.name] = ".".join([*base, alias.name])
+    return bindings
+
+
+def _py_body_calls(function: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.Call]:
+    """Calls a function body makes itself; nested definitions own their bodies."""
+    calls: list[ast.Call] = []
+    stack: list[ast.AST] = list(reversed(function.body))
+    while stack:
+        node = stack.pop()
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            stack.extend(node.decorator_list)
+            stack.extend(node.args.defaults)
+            stack.extend(item for item in node.args.kw_defaults if item is not None)
+            continue
+        if isinstance(node, ast.ClassDef):
+            stack.extend(node.decorator_list)
+            stack.extend(node.bases)
+            continue
+        if isinstance(node, ast.Call):
+            calls.append(node)
+        stack.extend(reversed(list(ast.iter_child_nodes(node))))
+    return calls
+
+
+def _py_is_route_decorator(decorator: ast.expr) -> bool:
+    return (
+        isinstance(decorator, ast.Call)
+        and isinstance(decorator.func, ast.Attribute)
+        and decorator.func.attr in _PY_ROUTE_DECORATORS
+    )
+
+
+def _python_structure(path: Path) -> dict[str, object]:
+    """Inert structure of one Python file, in the Rust call-graph node shape."""
+    relative = _relative(path)
+    module = _py_module_path(path)
+    failed: dict[str, object] = {"functions": [], "roots": [], "failed": True}
+    try:
+        raw = _bytes(path)
+        tree = ast.parse(raw, filename=relative)
+    except (SyntaxError, ValueError, RecursionError):
+        # Unparseable source cannot be imported at runtime either, but the
+        # graph cannot vouch for anything it did not read.
+        return failed
+    ast_truncated = False
+    for count, _node in enumerate(ast.walk(tree)):
+        if count >= MAX_AST_NODES:
+            ast_truncated = True
+            break
+    statements = _py_module_statements(tree.body)
+    package = path.name == "__init__.py"
+    imports = _py_imports(statements, module, package)
+    top_level = {
+        statement.name
+        for statement in statements
+        if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+    }
+    functions: list[dict[str, object]] = []
+    roots: list[str] = []
+    calls_truncated = False
+    registered: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        target = _py_dotted(node.func)
+        if target is None or target.rsplit(".", 1)[-1] not in _PY_ROUTE_REGISTRARS:
+            continue
+        for value in [*node.args, *(keyword.value for keyword in node.keywords)]:
+            if isinstance(value, ast.Name):
+                registered.add(value.id)
+
+    def visit(
+        body: list[ast.stmt], scopes: list[str], owner: ast.ClassDef | None
+    ) -> None:
+        nonlocal calls_truncated
+        for statement in body:
+            if isinstance(statement, ast.ClassDef):
+                visit(statement.body, [*scopes, statement.name], statement)
+                continue
+            if not isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
+                # Definitions under if/try/with blocks keep their enclosing scope.
+                for field in ("body", "orelse", "finalbody"):
+                    visit(getattr(statement, field, []) or [], scopes, owner)
+                for handler in getattr(statement, "handlers", []) or []:
+                    visit(handler.body, scopes, owner)
+                continue
+            module_path = ".".join([*module, *scopes])
+            calls: dict[str, int] = {}
+            for call in _py_body_calls(statement):
+                called = _py_dotted(call.func) or ast.unparse(call.func)
+                if 1 <= len(called) <= 240:
+                    calls.setdefault(called, call.lineno)
+            calls_truncated = calls_truncated or len(calls) > MAX_CALLS_PER_FUNCTION
+            function_id = f"{relative}:{statement.lineno}:{statement.name}"
+            functions.append(
+                {
+                    "id": function_id,
+                    "name": statement.name,
+                    "module_path": module_path,
+                    "qualified_name": f"{module_path}.{statement.name}",
+                    "line": statement.lineno,
+                    "end_line": statement.end_lineno or statement.lineno,
+                    "calls": [
+                        {"target": target, "line": line}
+                        for target, line in sorted(calls.items())[
+                            :MAX_CALLS_PER_FUNCTION
+                        ]
+                    ],
+                    "class_path": module_path if owner is not None else None,
+                    "module": ".".join(module),
+                    "scope": "module" if not scopes else "nested",
+                }
+            )
+            handler_class = owner is not None and any(
+                (_py_dotted(base) or "").endswith("RequestHandler")
+                for base in owner.bases
+            )
+            if (
+                any(_py_is_route_decorator(item) for item in statement.decorator_list)
+                or (not scopes and statement.name in registered)
+                or (handler_class and _PY_HANDLER_METHOD.fullmatch(statement.name))
+            ):
+                roots.append(function_id)
+            visit(statement.body, [*scopes, statement.name], None)
+
+    visit(tree.body, [], None)
+    return {
+        "functions": functions[:MAX_FUNCTIONS],
+        "roots": roots,
+        "imports": imports,
+        "top_level": sorted(top_level),
+        "truncated": ast_truncated or calls_truncated or len(functions) > MAX_FUNCTIONS,
+    }
+
+
+def _py_call_candidates(
+    target: str,
+    caller: dict[str, object],
+    modules: dict[str, dict[str, object]],
+    by_name: dict[str, list[dict[str, object]]],
+) -> list[dict[str, object]]:
+    """Resolve only statically certain Python calls; anything else is unresolved."""
+    if not _PY_DOTTED.fullmatch(target):
+        return []
+    parts = target.split(".")
+    head = parts[0]
+    module = str(caller["module"])
+    info = modules.get(module, {})
+    imports = cast(dict[str, str], info.get("imports", {}))
+    top_level = cast(list[str], info.get("top_level", []))
+
+    def exact(qualified: str) -> list[dict[str, object]]:
+        tail = qualified.rsplit(".", 1)[-1]
+        return [
+            item
+            for item in by_name.get(tail, [])
+            if item["qualified_name"] == qualified
+        ]
+
+    def suffix(qualified: str) -> list[dict[str, object]]:
+        tail = qualified.rsplit(".", 1)[-1]
+        return [
+            item
+            for item in by_name.get(tail, [])
+            if item["qualified_name"] == qualified
+            or str(item["qualified_name"]).endswith("." + qualified)
+        ]
+
+    if head in {"self", "cls"}:
+        class_path = caller.get("class_path")
+        if len(parts) != 2 or not isinstance(class_path, str):
+            return []
+        return exact(f"{class_path}.{parts[1]}")
+    prefix = f"{module}." if module else ""
+    if len(parts) == 1:
+        nested = exact(f"{caller['qualified_name']}.{head}")
+        if nested:
+            return nested
+    if head in top_level:
+        local = exact(prefix + target)
+        return local or exact(prefix + target + ".__init__")
+    if head in imports:
+        qualified = ".".join([imports[head], *parts[1:]])
+        return suffix(qualified) or suffix(qualified + ".__init__")
+    return []
+
+
+def _python_call_graph(entry: str, files: list[Path]) -> dict[str, object]:
+    analysis_truncated = False
+    definitions: list[dict[str, object]] = []
+    modules: dict[str, dict[str, object]] = {}
+    roots: list[str] = []
+    for path in files:
+        if path.suffix != ".py":
+            continue
+        structure = _python_structure(path)
+        if structure.get("failed") is True or structure.get("truncated") is True:
+            analysis_truncated = True
+        if structure.get("failed") is True:
+            continue
+        modules[".".join(_py_module_path(path))] = structure
+        roots.extend(cast(list[str], structure["roots"]))
+        for function in cast(list[dict[str, object]], structure["functions"]):
+            definitions.append({"path": _relative(path), **function})
+    by_id = {str(item["id"]): item for item in definitions}
+    by_name: dict[str, list[dict[str, object]]] = {}
+    for item in definitions:
+        by_name.setdefault(str(item["name"]), []).append(item)
+    if "." in entry or "::" in entry:
+        qualified = entry.replace("::", ".")
+        entry_candidates = [
+            item for item in definitions if item["qualified_name"] == qualified
+        ]
+    else:
+        entry_candidates = [
+            item
+            for item in definitions
+            if item["name"] == entry and item["scope"] == "module"
+        ]
+    if entry != "main":
+        roots = []
+    roots_truncated = len(roots) > MAX_ROUTE_CALLS
+    roots = sorted(set(roots))[:MAX_ROUTE_CALLS]
+    queue = [str(entry_candidates[0]["id"])] if len(entry_candidates) == 1 else []
+    queue.extend(root for root in roots if root not in queue)
+    seen: set[str] = set()
+    nodes: list[dict[str, object]] = []
+    ambiguous_calls: list[dict[str, object]] = []
+    unresolved_calls: list[dict[str, object]] = []
+    while queue and len(nodes) < MAX_GRAPH_NODES:
+        function_id = queue.pop(0)
+        if function_id in seen:
+            continue
+        seen.add(function_id)
+        definition = by_id[function_id]
+        nodes.append(
+            {
+                key: value
+                for key, value in definition.items()
+                if key not in {"class_path", "module", "scope"}
+            }
+        )
+        for call in cast(list[dict[str, object]], definition.get("calls", [])):
+            target = str(call["target"])
+            candidates = _py_call_candidates(target, definition, modules, by_name)
+            location = {
+                "caller": function_id,
+                "path": definition["path"],
+                "line": call["line"],
+                "target": target,
+            }
+            if len(candidates) == 1:
+                candidate_id = str(candidates[0]["id"])
+                if candidate_id not in seen:
+                    queue.append(candidate_id)
+            elif len(candidates) > 1:
+                ambiguous_calls.append(
+                    {
+                        **location,
+                        "candidates": [str(item["id"]) for item in candidates],
+                    }
+                )
+            else:
+                unresolved_calls.append(location)
+    reachable_truncated = bool(queue)
+    analysis_truncated = analysis_truncated or roots_truncated
+    return {
+        "entry": entry,
+        "language": "python",
+        "served_roots": roots,
+        "nodes": nodes,
+        "unresolved": not entry_candidates and not roots,
+        "entry_ambiguous": len(entry_candidates) > 1,
+        "ambiguous_calls": ambiguous_calls[:MAX_GRAPH_SAMPLES],
+        "ambiguous_count": len(ambiguous_calls),
+        "ambiguous_sampled": len(ambiguous_calls) > MAX_GRAPH_SAMPLES,
+        "unresolved_calls": unresolved_calls[:MAX_GRAPH_SAMPLES],
+        "unresolved_count": len(unresolved_calls),
+        "unresolved_sampled": len(unresolved_calls) > MAX_GRAPH_SAMPLES,
+        "definition_count": len(definitions),
+        "analysis_truncated": analysis_truncated,
+        "reachable_truncated": reachable_truncated,
+        "truncated": analysis_truncated or reachable_truncated,
+    }
+
+
 def call_graph(request: dict[str, object]) -> object:
     entry = request.get("entry", "main")
     if not isinstance(entry, str) or not re.fullmatch(
@@ -429,6 +794,16 @@ def call_graph(request: dict[str, object]) -> object:
         raise ValueError("entry is invalid")
     definitions: list[dict[str, object]] = []
     files, workspace_truncated = _files_with_truncation()
+    # A workspace with any Rust keeps the Rust graph exactly; Python structure
+    # only answers for a harness that has no Rust source at all.
+    if not any(path.suffix == ".rs" for path in files) and any(
+        path.suffix == ".py" for path in files
+    ):
+        graph = _python_call_graph(entry, files)
+        if workspace_truncated:
+            graph["analysis_truncated"] = True
+            graph["truncated"] = True
+        return graph
     analysis_truncated = workspace_truncated
     for path in files:
         if path.suffix != ".rs":
