@@ -69,7 +69,7 @@ class TestPreflight:
                 tar.addfile(info, io.BytesIO(data))
         raw = full.read_bytes()
         cut = tmp_path / "truncated.tar.gz"
-        cut.write_bytes(raw[: int(len(raw) * keep)] if keep < 1 else raw[:keep])
+        cut.write_bytes(raw[: int(len(raw) * keep)] if keep < 1 else raw[: int(keep)])
 
         result = run_preflight(cut)
 
