@@ -866,9 +866,11 @@ def test_stack_updater_unit_outlasts_a_full_drain_and_rollback() -> None:
     timeout_start = int(unit.group(1))
 
     assert timeout_start == int(budget.group(1))
+    # Startup committed recovery: one readiness wait plus a full rollback
+    # (two deploy waits, quiescence and resume). Then a fresh update follows.
     # After the drain: docker stop (30s), a candidate deploy (two readiness
     # waits) whose health wait fails, then a full rollback (two readiness
     # waits, a health wait and a resume). systemd must not SIGTERM that path.
-    assert timeout_start >= drain + 30 + 7 * ready
+    assert timeout_start >= drain + 30 + (5 + 7) * ready
     env_example = ENV_EXAMPLE_PATH.read_text()
     assert f"VALIDATOR_AUTO_UPDATE_DRAIN_TIMEOUT_SECONDS={drain}\n" in env_example
