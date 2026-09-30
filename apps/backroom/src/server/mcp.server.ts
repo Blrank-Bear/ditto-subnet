@@ -730,7 +730,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   get_l2_report_canary:
     'Read one exact-attempt non-authoritative L2 canary report and lease outcome.',
   get_l2_report_canary_preflight:
-    'Read current exact-source canary guards; scheduling rechecks them.',
+    'Evaluate each exact-source canary guard; scheduling rechecks them.',
   get_v13_scorer_cohort:
     'Read the immutable three-validator V13 scorer pin, including exact signed runtime packet.',
   get_v13_scorer_cohort_preflight:
@@ -745,14 +745,15 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
     'Rotate the exact pinned V13 cohort to a unanimously signed packet after all V13 tickets drain; preserves pin history.',
   schedule_l2_report_canary:
     'Queue one isolated exact-artifact report. No screening/scoring authority. reviewSettingsRevision pins only l2-report-canary scopes; never experiment on node scopes. See tool help.',
+
   get_canonical_starter_fixture_preflight:
-    'Read the pinned public starter tree and archive, independent review provenance, object integrity and scheduling readiness.',
+    'Read starter identity/review/integrity/readiness.',
   register_canonical_starter_fixture:
-    'Stage the exact released public starter source as an operator-only fixture without a miner submission.',
+    'Stage exact released starter: operator fixture, no miner submission.',
   review_canonical_starter_fixture:
-    'Record an independent exact-source and served-path candidate review with its public evidence digest and image digest.',
+    'Record independent exact-source/served-path review with public evidence and image digests.',
   schedule_canonical_starter_fixture:
-    'Queue one bounded source-only report after independent review; no screening, score or admission authority.',
+    'Queue one bounded source-only report after independent review; no screening/score/admission authority.',
   get_copy_court_settings:
     'Read the copy-hold triage court posture and revision history.',
   get_confirmation_seed_anchors:
@@ -762,7 +763,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   apply_screener_review_settings:
     'Write one L1/L2/L3 source-review revision. Confirmation: APPLY SCREENER REVIEW {scope} {MODE}.',
   set_queue_policy_settings:
-    'Apply a complete queue-policy revision with expectedRevision, reason, and "APPLY QUEUE POLICY SETTINGS". It NEVER resizes an in-flight rollout; rollout-locked fields are REFUSED while a benchmark rollout is open. similarity_budget is a queue-fairness and capacity rail; prev_gen_carryover ships DISABLED. The whole nested block is required. This is subnet queue policy; Ditto app entitlement flags are not served by this server.',
+    'Complete subnet policy: expectedRevision/reason/"APPLY QUEUE POLICY SETTINGS". NEVER resizes an in-flight rollout; locked fields REFUSED while a benchmark rollout is open. similarity_budget: queue-fairness and capacity rail; prev_gen_carryover ships DISABLED. The whole nested block is required. Ditto app entitlement flags not served by this server.',
   set_continual_retest_settings:
     'Apply a complete continual-retest revision with expectedRevision, reason, and "APPLY CONTINUAL RETEST SETTINGS". wave_membership CHANGES WHAT VALIDATORS WEIGHT; every one of these fields is required because revisions store whole policies. Read field_support first for rollout compatibility.',
   evict_live_validator_leases:
@@ -788,7 +789,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   get_outlier_escalation_dry_run:
     'Replay outlier escalation on the scored ledger: would-trigger count and agents.',
   get_inference_failure_taxonomy:
-    'Group recent chat and embedding outcomes by model, lane, gateway, upstream route, and error code. route_basis says how much of a route is known; an unknown route never names one. rate_limit_bursts is a report-only 5-minute 429 signal with affected tickets.',
+    'Group chat/embedding outcomes by model/lane/gateway/route/code. route_basis preserves unknown routes. rate_limit_bursts: report-only 5-minute 429s and affected tickets.',
   start_runtime_profile:
     'Capture bounded private relay pprof.',
   download_runtime_profile:
@@ -797,13 +798,13 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   download_inference_trace: 'Presigned trace URL; artifact scope.',
   peek_inference_trace: 'Peek trace records; artifact scope.',
   get_owner_attestations:
-    'Read direct signed owner links, including revoked history. Direct-only, non-transitive, and limited to near-duplicate review.',
+    'Direct signed owner links including revocations; non-transitive, near-duplicate review only.',
   list_lease_revocations:
     'Page ended leases with operator_evicted and exact verdicts. Evidence is WHOLE AND UNTYPED validator_lease_audit context. AN EMPTY RESULT IS A FINDING, NOT AN UNWIRED FEATURE.',
   list_stuck_submissions:
     'Page stuck-submission urgency order with ticket counts and silent_expiry_count. generation=all spans benchmarks; get_validation_retry includes infra_retry_grants.',
   list_screening_submissions:
-    'Page submissions newest first; summary shows the latest attempt. To find a named agent, hotkey, coldkey, SHA-256, status, or reason code use search_submissions, never page and grep.',
+    'Newest-first submissions/latest attempt. For name/hotkey/coldkey/SHA/status/reason code use search_submissions, never page and grep.',
   search_submissions:
     'Find submissions by exact/prefix name, hotkey, coldkey, SHA-256, status, reason code, or submitted window. Filtered count; identity rows by default; all generations.',
   summarize_screening_failures:
@@ -821,7 +822,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   release_verified_v13_court_clear:
     'Release a held V13 court clear after Platform re-verifies its signed receipt. Confirmation: RELEASE VERIFIED V13 COURT CLEAR. Requires backroom:write.',
   get_queue_policy_settings:
-    'Read effective queue policy, rollout-locked fields, defaults, and optionally paged newest-first revision history. Open-rollout targets are snapshots: settings do not resize an in-flight rollout. historyLimit defaults to 0.',
+    'Effective queue policy/defaults/rollout-locked fields; newest-first history (historyLimit=0 default). Settings never resize an in-flight rollout.',
   get_screener_policy_activation:
     'Read the scheduled screening-policy activation and its revision history; latest is null when none was ever scheduled.',
   get_v13_review_clock:
@@ -2480,7 +2481,7 @@ export function createBackroomMcpServer(props: McpGrantProps) {
     'get_l2_report_canary_preflight',
     {
       title: 'Get L2 canary preflight',
-      description: 'Read agent/attempt SHA, status, policy/bench version and raw Score count. Advisory snapshot; scheduling rechecks. Requires backroom:read.',
+      description: 'Read-only scheduler guard check; no authority. Planned SHA/status/score count/ruling yield per-guard results and 409 detail (omitted: null). Includes legacy SHA, active canary and packet state. Requires backroom:read.',
       inputSchema: l2ReportCanaryPreflightInputSchema,
       annotations: toolAnnotations('read'),
     },
