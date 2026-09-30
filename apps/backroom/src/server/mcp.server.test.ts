@@ -257,6 +257,7 @@ describe('Backroom MCP tools', () => {
         'restore_scored_screening_snapshot',
         'get_validator_fleet',
         'get_validator_slot_settings',
+        'get_scoring_lease_settings',
         'list_validator_assignments',
         'get_validator_capacity',
         'list_confirmation_bundles',
@@ -268,6 +269,7 @@ describe('Backroom MCP tools', () => {
         'set_queue_policy_settings',
         'set_validator_slot_settings',
         'set_validator_issuance_pause',
+        'set_scoring_lease_settings',
         'set_confirmation_bundle_settings',
         'authorize_confirmation_bundle_retest',
         'read_copy_review_source_diff_file',
@@ -1380,6 +1382,7 @@ describe('Backroom MCP tools', () => {
       'get_queue_policy_settings',
       'get_validator_slot_settings',
       'get_inference_concurrency_settings',
+      'get_scoring_lease_settings',
     ]
 
     for (const name of settingsReads) {
@@ -5510,6 +5513,243 @@ describe('Backroom MCP tools', () => {
 
     await client.close()
     await server.close()
+  })
+
+  describe('scoring lease settings (#1156)', () => {
+    const scoringLeaseControl = (minutes: number, revision: number) => ({
+      current: revision
+        ? [
+            {
+              revision,
+              parent_revision: revision - 1,
+              scope: '*',
+              settings: { scoring_ticket_ttl_minutes: minutes },
+              reason: 'v11 completions fit well inside 150 minutes',
+              actor: 'peyton@omniaura.ai',
+              created_at: '2026-09-29T12:00:00Z',
+              checksum: 'cd'.repeat(32),
+            },
+          ]
+        : [],
+      history: [],
+      default: { scoring_ticket_ttl_minutes: 180 },
+      effective: {
+        revision,
+        scope: '*',
+        settings: { scoring_ticket_ttl_minutes: minutes },
+        checksum: revision ? 'cd'.repeat(32) : '',
+        source: revision ? 'revision' : 'default',
+        min_scoring_ticket_ttl_minutes: 60,
+        max_scoring_ticket_ttl_minutes: 240,
+        max_age_seconds: 5.0,
+      },
+    })
+
+    it('reads the effective scoring TTL and its bounds', async () => {
+      process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+      const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(scoringLeaseControl(180, 0)))
+      vi.stubGlobal('fetch', fetchMock)
+      const { client, server } = await connect([BACKROOM_READ_SCOPE])
+
+      const tools = await client.listTools()
+      expect(
+        tools.tools.find((tool) => tool.name === 'get_scoring_lease_settings')?.annotations
+          ?.readOnlyHint,
+      ).toBe(true)
+      expect(
+        tools.tools.find((tool) => tool.name === 'set_scoring_lease_settings')?.description,
+      ).toContain('NEW leases only')
+
+      const response = await client.callTool({ name: 'get_scoring_lease_settings', arguments: {} })
+      expect(response.isError).not.toBe(true)
+      expect(readJsonResult(response)).toMatchObject({
+        effective: {
+          revision: 0,
+          source: 'default',
+          settings: { scoring_ticket_ttl_minutes: 180 },
+          min_scoring_ticket_ttl_minutes: 60,
+          max_scoring_ticket_ttl_minutes: 240,
+        },
+      })
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        'https://platform-api.heyditto.ai/api/v1/admin/scoring-lease-settings',
+        expect.objectContaining({ method: 'GET' }),
+      )
+
+      await client.close()
+      await server.close()
+    })
+
+    it('applies a revision as the signed-in operator and re-reads the effect', async () => {
+      process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(Response.json({ revision: 1 }))
+        .mockResolvedValueOnce(Response.json(scoringLeaseControl(150, 1)))
+      vi.stubGlobal('fetch', fetchMock)
+      const { client, server } = await connect([BACKROOM_READ_SCOPE, BACKROOM_WRITE_SCOPE])
+
+      const response = await client.callTool({
+        name: 'set_scoring_lease_settings',
+        arguments: {
+          expectedRevision: 0,
+          settings: { scoring_ticket_ttl_minutes: 150 },
+          reason: 'v11 completions fit well inside 150 minutes',
+          confirmation: 'APPLY SCORING TICKET TTL 150 MINUTES',
+          ignoredExtra: true,
+        },
+      })
+      expect(response.isError).not.toBe(true)
+      expect(readJsonResult(response)).toMatchObject({
+        effective: { revision: 1, source: 'revision', settings: { scoring_ticket_ttl_minutes: 150 } },
+      })
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('https://platform-api.heyditto.ai/api/v1/admin/scoring-lease-settings')
+      expect(init.method).toBe('POST')
+      expect(init.headers).toMatchObject({ 'X-Admin-Actor': 'peyton@omniaura.ai' })
+      expect(JSON.parse(String(init.body))).toEqual({
+        scope: '*',
+        expected_revision: 0,
+        settings: { scoring_ticket_ttl_minutes: 150 },
+        reason: 'v11 completions fit well inside 150 minutes',
+        actor: 'peyton@omniaura.ai',
+        confirmation: 'APPLY SCORING TICKET TTL 150 MINUTES',
+      })
+
+      await client.close()
+      await server.close()
+    })
+
+    it('refuses a mismatched confirmation, a partial policy, or an out-of-range TTL locally', async () => {
+      process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const { client, server } = await connect([BACKROOM_READ_SCOPE, BACKROOM_WRITE_SCOPE])
+
+      for (const [settings, confirmation] of [
+        [{ scoring_ticket_ttl_minutes: 150 }, 'APPLY SCORING TICKET TTL 180 MINUTES'],
+        [{}, 'APPLY SCORING TICKET TTL 150 MINUTES'],
+        [{ scoring_ticket_ttl_minutes: 430 }, 'APPLY SCORING TICKET TTL 430 MINUTES'],
+        [{ scoring_ticket_ttl_minutes: 59 }, 'APPLY SCORING TICKET TTL 59 MINUTES'],
+      ] as const) {
+        const response = await client.callTool({
+          name: 'set_scoring_lease_settings',
+          arguments: {
+            expectedRevision: 0,
+            settings,
+            reason: 'v11 completions fit well inside 150 minutes',
+            confirmation,
+          },
+        })
+        expect(response.isError).toBe(true)
+      }
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      await client.close()
+      await server.close()
+    })
+
+    it('surfaces the stale-revision refusal verbatim with its recovery', async () => {
+      process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+      const detail =
+        'scoring lease settings changed; refresh before applying (expected 0, current 2)'
+      const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ detail }, { status: 409 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const { client, server } = await connect([BACKROOM_READ_SCOPE, BACKROOM_WRITE_SCOPE])
+
+      const response = await client.callTool({
+        name: 'set_scoring_lease_settings',
+        arguments: {
+          expectedRevision: 0,
+          settings: { scoring_ticket_ttl_minutes: 150 },
+          reason: 'v11 completions fit well inside 150 minutes',
+          confirmation: 'APPLY SCORING TICKET TTL 150 MINUTES',
+        },
+      })
+
+      expect(response.isError).toBe(true)
+      const message = readTextResult(response)
+      expect(message).toContain(detail)
+      expect(message).toContain('get_scoring_lease_settings')
+      expect(message).toContain('Nothing was applied')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      await client.close()
+      await server.close()
+    })
+
+    it('refuses a whitespace-only reason locally instead of reporting a conflict', async () => {
+      process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const { client, server } = await connect([BACKROOM_READ_SCOPE, BACKROOM_WRITE_SCOPE])
+
+      const response = await client.callTool({
+        name: 'set_scoring_lease_settings',
+        arguments: {
+          expectedRevision: 0,
+          settings: { scoring_ticket_ttl_minutes: 150 },
+          reason: '            ',
+          confirmation: 'APPLY SCORING TICKET TTL 150 MINUTES',
+        },
+      })
+
+      expect(response.isError).toBe(true)
+      expect(JSON.stringify(response.content)).not.toContain('get_scoring_lease_settings')
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      await client.close()
+      await server.close()
+    })
+
+    it('keeps confirmation-specific recovery for a Platform confirmation refusal', async () => {
+      process.env.DITTO_ADMIN_API_TOKEN = 'platform-admin-token'
+      const detail = 'confirmation must be exactly APPLY SCORING TICKET TTL 150 MINUTES'
+      const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ detail }, { status: 409 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const { client, server } = await connect([BACKROOM_READ_SCOPE, BACKROOM_WRITE_SCOPE])
+
+      const response = await client.callTool({
+        name: 'set_scoring_lease_settings',
+        arguments: {
+          expectedRevision: 0,
+          settings: { scoring_ticket_ttl_minutes: 150 },
+          reason: 'v11 completions fit well inside 150 minutes',
+          confirmation: 'APPLY SCORING TICKET TTL 150 MINUTES',
+        },
+      })
+
+      expect(response.isError).toBe(true)
+      const message = readTextResult(response)
+      expect(message).toContain(detail)
+      expect(message).toContain('confirmation must name the TTL this revision applies')
+      expect(message).not.toContain('re-read get_scoring_lease_settings')
+
+      await client.close()
+      await server.close()
+    })
+
+    it('does not change the scoring TTL without the write scope', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const { client, server } = await connect([BACKROOM_READ_SCOPE])
+
+      const response = await client.callTool({
+        name: 'set_scoring_lease_settings',
+        arguments: {
+          expectedRevision: 0,
+          settings: { scoring_ticket_ttl_minutes: 150 },
+          reason: 'v11 completions fit well inside 150 minutes',
+          confirmation: 'APPLY SCORING TICKET TTL 150 MINUTES',
+        },
+      })
+
+      expect(response.isError).toBe(true)
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      await client.close()
+      await server.close()
+    })
   })
 
   it('keeps benchmark contract refresh read-only without the write scope', async () => {

@@ -315,6 +315,8 @@ import {
   claimProvenanceCasesSchema,
   queuePolicySettingsControlSchema,
   setInferenceConcurrencySettingsInputSchema,
+  scoringLeaseSettingsControlSchema,
+  setScoringLeaseSettingsInputSchema,
   runtimeProfileArtifactSchema,
   runtimeProfileCaptureInputSchema,
   runtimeProfileDownloadSchema,
@@ -1989,6 +1991,52 @@ export async function setValidatorIssuancePause(rawInput: unknown, actor: string
     throw validatorSlotRefusal(cause) ?? cause
   }
   return fetchValidatorSlotSettings()
+}
+
+const SCORING_LEASE_SETTINGS_PATH = '/api/v1/admin/scoring-lease-settings'
+
+export async function fetchScoringLeaseSettings() {
+  const payload = await platformAdminRequest(SCORING_LEASE_SETTINGS_PATH)
+  return scoringLeaseSettingsControlSchema.parse(payload)
+}
+
+// The platform owns the wording of every refusal: a stale `expected_revision`,
+// a concurrent write, a confirmation that does not name the resulting TTL, an
+// out-of-range TTL, or a blank audit field. Keep its text verbatim and append
+// the recovery for THAT refusal. Re-reading the revision only fixes a stale or
+// concurrent write; advising it for an input refusal sends the operator back
+// to repeat the same failing request.
+function scoringLeaseRefusal(cause: unknown) {
+  if (!(cause instanceof PlatformAdminError)) return null
+  if (cause.status !== 409 && cause.status !== 422) return null
+  const recovery = /confirmation/i.test(cause.message)
+    ? 'Nothing was applied: the confirmation must name the TTL this revision applies, typed out as "APPLY SCORING TICKET TTL <n> MINUTES" rather than derived from the number above it.'
+    : cause.status === 422
+      ? 'Nothing was applied and the revision did not change: correct the refused input (a whole-minute scoring_ticket_ttl_minutes inside the bounds get_scoring_lease_settings reports, and a reason of at least 8 non-blank characters) and resubmit with the same expectedRevision.'
+      : 'Nothing was applied: re-read get_scoring_lease_settings and resubmit with the revision it reports.'
+  return new Error(`${cause.message}. ${recovery}`)
+}
+
+/** Append one scoring lease revision. It applies to NEW leases only. */
+export async function setScoringLeaseSettings(rawInput: unknown, actor: string) {
+  const input = setScoringLeaseSettingsInputSchema.parse(rawInput)
+  try {
+    await platformAdminRequest(SCORING_LEASE_SETTINGS_PATH, {
+      method: 'POST',
+      actor,
+      body: {
+        scope: input.scope,
+        expected_revision: input.expectedRevision,
+        settings: input.settings,
+        reason: input.reason,
+        actor,
+        confirmation: input.confirmation,
+      },
+    })
+  } catch (cause) {
+    throw scoringLeaseRefusal(cause) ?? cause
+  }
+  return fetchScoringLeaseSettings()
 }
 
 // The platform's existing public heartbeat view. It is the only place the two

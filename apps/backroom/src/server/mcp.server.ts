@@ -111,6 +111,7 @@ import {
   setEfficiencyBonusSettingsInputSchema,
   setContinualRetestSettingsInputSchema,
   setInferenceConcurrencySettingsInputSchema,
+  setScoringLeaseSettingsInputSchema,
   runtimeProfileCaptureInputSchema,
   runtimeProfileLookupInputSchema,
   listInferenceTracesInputSchema,
@@ -256,6 +257,7 @@ import {
   fetchContinualRetestSettings,
   setContinualRetestSettings,
   fetchInferenceConcurrencySettings,
+  fetchScoringLeaseSettings,
   fetchInferenceRuntimeMetrics,
   fetchSourceReviewQueueSlo,
   fetchOutlierEscalation,
@@ -301,6 +303,7 @@ import {
   fetchScreenerPolicyManifestControl,
   rotateScreenerPolicyManifest,
   setInferenceConcurrencySettings,
+  setScoringLeaseSettings,
   setQueuePolicySettings,
   fetchValidatorSlotSettings,
   fetchValidatorFleetObservability,
@@ -447,6 +450,7 @@ export const WRITE_TOOL_NAMES = new Set([
   'restore_scored_screening_snapshot',
   'set_validator_slot_settings',
   'set_validator_issuance_pause',
+  'set_scoring_lease_settings',
   'activate_v13_scorer_cohort',
   'rotate_v13_scorer_cohort',
   'apply_copy_court_settings',
@@ -747,7 +751,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
     'Queue one isolated exact-artifact report. No screening/scoring authority. reviewSettingsRevision pins only l2-report-canary scopes; never experiment on node scopes. See tool help.',
 
   get_canonical_starter_fixture_preflight:
-    'Read starter identity/review/integrity/readiness.',
+    'Pinned starter source, independent review, object integrity and schedule readiness.',
   register_canonical_starter_fixture:
     'Stage exact released starter: operator fixture, no miner submission.',
   review_canonical_starter_fixture:
@@ -777,7 +781,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   reinstate_evicted_submission_to_queue:
     'Reverse an active-era removal using a fresh snapshot and "REINSTATE TO VALIDATOR QUEUE", not "EVICT LIVE VALIDATOR LEASES" or "REMOVE FROM VALIDATOR QUEUE". It does not mint a no-fault retry grant or restore attempts; retry_budget_snapshot records that invariant. Refused when the removal era is no longer the active one.',
   set_inference_concurrency_settings:
-    'Apply the complete hosted-inference and v10 benchmark-runtime policy with expectedRevision, reason, and "APPLY INFERENCE CONCURRENCY SETTINGS". Chat budgets affect newly minted grants; chat and embedding concurrency are live admission controls; case_concurrency is 1-64 (default 4); relay delays are off or shadow.',
+    'Write complete inference/runtime policy with expectedRevision, reason and "APPLY INFERENCE CONCURRENCY SETTINGS". Chat budgets affect new grants; chat/embedding concurrency is live; case_concurrency 1-64, default 4; relay delays off/shadow.',
   get_inference_runtime_metrics:
     'Read inference load and relay health.',
   get_source_review_queue_slo:
@@ -816,17 +820,17 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   get_v13_private_generation_group:
     'Read V13 group or optional role package digests; unverified, no verdict.',
   get_screening_review_deadline:
-    'Read exact V13 artifact deadline binding; null/not_configured means no authoritative window. Attempt leases are not finalizer dates.',
+    'Exact V13 artifact review window; null/not_configured means none. Attempt leases are not finalizer dates.',
   reject_screening_submission:
     'Reject a screening row. Confirmation: REJECT SCREENING SUBMISSION. Requires backroom:write.',
   release_verified_v13_court_clear:
     'Release a held V13 court clear after Platform re-verifies its signed receipt. Confirmation: RELEASE VERIFIED V13 COURT CLEAR. Requires backroom:write.',
   get_queue_policy_settings:
-    'Effective queue policy/defaults/rollout-locked fields; newest-first history (historyLimit=0 default). Settings never resize an in-flight rollout.',
+    'Read queue policy, rollout locks, defaults and optional history (default 0). Settings do not resize open rollout snapshots.',
   get_screener_policy_activation:
-    'Read the scheduled screening-policy activation and its revision history; latest is null when none was ever scheduled.',
+    'Scheduled screening-policy activation and history; latest=null if never scheduled.',
   get_v13_review_clock:
-    'Read the explicitly scheduled V13 first-claim review clock. No row means no authoritative deadline; this does not activate a finalizer.',
+    'Scheduled V13 first-claim clock; absent means no authoritative deadline. No finalizer activation.',
   schedule_v13_review_clock:
     'Schedule a future V13 first-claim clock for new submissions only. Requires exact document/manifest digests, 65-minute notice, revision guard, and confirmation. Does not finalize holds.',
   schedule_screener_policy_activation:
@@ -843,6 +847,10 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
     'Read effective validator slot and disk policy plus optional newest-first revision history. A validator advertising more slots than the cap is not an underutilized host. historyLimit defaults to 0.',
   get_validator_fleet:
     'Read validator heartbeats, stack identity, and version histogram.',
+  get_scoring_lease_settings:
+    'Read the scoring ticket TTL for new leases, bounds, and history.',
+  set_scoring_lease_settings:
+    'Set the scoring TTL for NEW leases only; live deadlines never change.',
   list_validator_assignments:
     'Active validator leases.',
   get_validator_capacity:
@@ -862,29 +870,29 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   retry_failed_screening_now:
     'Manually retry the latest terminal screening attempt with fresh artifact/score-count/attempt guards; preserves history.',
   get_screening_baseline_diff:
-    'Compare miner-authored residual source against the platform starter-kit baseline. Stock detection is platform-owned; use the file reader for full sanitized bodies. If custom_added_lines_complete is false, the total is a lower bound (omitted_paths not compared). Requires artifact scope.',
+    'Starter/residual diff. custom_added_lines_complete=false means a lower bound; omitted_paths are unexamined. File reader gives bodies. Artifact scope.',
   list_screening_source_files:
-    'Read the readable file manifest for one quarantined submission tarball in archive order. The default limit is the platform listing cap, so a default call returns the WHOLE manifest and pages only when you pass a smaller limit. count is the pageable total and returned is this response; has_more is the only field reporting MCP paging, while truncated reports paths the platform dropped before paging, which no offset recovers. NEVER treat a manifest with has_more or truncated set as the complete inventory of a submission. Requires artifact scope.',
+    'Readable archive manifest; default returns the full platform-capped listing. has_more means paging remains; truncated means dropped paths cannot be recovered by offset. If either is set, the inventory is incomplete. Requires artifact scope.',
   get_efficiency_bonus_settings:
-    'Read effective efficiency-bonus scoring policy, fold state, seed default, and optional newest-first revision history. This is subnet scoring policy; Ditto app entitlement flags are not served by this server. historyLimit defaults to 0.',
+    'Read subnet efficiency policy, fold state, defaults and optional history (default 0). Ditto app entitlement flags are not served by this server.',
   get_leaderboard:
-    'Read the authoritative benchmark leaderboard for one version, defaulting to the current applicable version. Returns rank, score state, emission eligibility, and on-chain registration.',
+    'Authoritative leaderboard for a benchmark version (default current): rank, score state, emission eligibility and registration.',
   get_source_release_policy:
-    'Read source policy, gate version, pending/confirmed counts, and up to 25 payout receipts. Public requires completed winner emissions; never stops releases. Optional history; historyLimit defaults to 0.',
+    'Source gate/counts and up to 25 receipts. Public needs completed winner emissions; releases continue. Optional history, default 0.',
   set_burn_settings:
     'Apply a burn revision with expectedRevision, reason and "APPLY BURN SETTINGS". MOVES TAO; scales miner weights without reranking. Fleet effect takes an epoch. See tool help.',
   get_burn_settings:
-    'Read the emission burn in force, the miner share it leaves, the governing revision, and how many validators are live enough to fold it. Revision history is newest-first and opt-in; historyLimit defaults to 0.',
+    'Read effective burn, miner remainder, revision and live validator fold coverage. Optional newest-first history, default 0.',
   get_emission_eligibility_policy:
-    'Read the terminal-review emission gate: posture (off/shadow/enforce), what the fleet is actually folding, stored or default revision, emission windows, and the shadow withheld count. Opt-in history.',
+    'Read emission gate posture, fleet fold, stored/default revision, windows and shadow withheld count. Optional history.',
   get_treasury_settings: 'Read shadow treasury buckets and history. No weights or funds move.',
   record_treasury_settings: 'Record a shadow treasury revision with CAS and confirmation. No weights or funds move.',
   quote_treasury_topup: 'Quote finalized GM funding routes and price impact. No execution.',
   preview_treasury_topup: 'Dry-run a GM route against shadow limits. Execution disabled.',
   get_agent_emission_eligibility:
-    'Explain one exact agent UUID: whether it is earning, the withheld class and reason, when a clear starts earning, and whether the validator fold sees it.',
+    'Exact agent eligibility: earning/withheld reason, clear activation time and validator fold visibility.',
   get_submission_cooldown:
-    'Read the current miner submission fee and owner-coldkey cooldown. Revision history is newest-first and opt-in; historyLimit defaults to 0.',
+    'Current miner fee and owner-coldkey cooldown; optional newest-first history, historyLimit=0 default.',
   list_hotkey_bans: 'Hotkey bans.',
   unban_hotkey: 'Unban.',
   get_confirmation_bundle_settings:
@@ -912,7 +920,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   get_score_history:
     'Read authoritative accepted-score aggregates across benchmark versions for one agent. Seeds remain exact decimal strings; omitted versions were never scored. Versions are returned newest-first.',
   get_screening_review_queue:
-    'THE operator queue: every agent held in ath_pending_review with an unresolved ATH review, oldest hold first, carrying agent and miner identity, submitted_at/opened_at, agent_status, and a `hold` object naming review_kind and any matched agent. Filter with reviewKind. generation defaults to `all` so upload-time and prior-generation holds stay visible. Read agent_status first: pending + not ath_pending_review is a stranded hold and resolve 409s. NOT list_screening_quarantines, a separate screener surface whose active rows auto-resolve.',
+    'Oldest-first unresolved ATH holds, with identity and hold kind. Defaults generation=all; filter reviewKind. Read agent_status: a pending row outside ath_pending_review is stranded and resolve returns 409. Distinct from screener quarantines.',
   // The two quarantine reads below get catalog summaries in the same change
   // that fixes the queue. They describe the screener-owned surface an operator
   // reaches after picking a row, not the queue itself, so their long-form
@@ -925,7 +933,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   list_screening_adjudication_attempts:
     'Recent L4 outcomes with attempt SHA, manifest and pinned settings; observed timing/provider only when recorded. Null success telemetry is unavailable, not zero.',
   get_screening_quarantine_context:
-    'Full review context for one quarantine: the screener evidence trail, the digest-verified source-review finding with its flagged path:line locations, every screening attempt, the miner track record, identical-artifact duplicates, and the advisory `shadow_review` (often null, never authoritative — a divergence from the L1 finding is a prompt to read the source, not a decision). Read this before deciding a quarantine.',
+    'Before a decision: verified findings/locations, evidence, attempts, miner history and duplicates. shadow_review is advisory; divergence requires source review, never authorizes a decision.',
   search_screening_source:
     'Grep one screened submission\'s readable source (regex, or mode=literal) for {path, line, text} matches with optional context — the "where is X" tool for a 10,000-line baseline.rs. Scope with pathGlob; has_more is the paging signal; opaque_skipped counts binaries never searched. Requires backroom:artifact:read.',
   // Paired with the tool above: an operator now arrives here already holding a
@@ -3119,6 +3127,38 @@ export function createBackroomMcpServer(props: McpGrantProps) {
       annotations: toolAnnotations('write', true),
     },
     async (input) => write(() => setValidatorSlotSettings(input, props.session.email)),
+  )
+
+  registerTool(
+    'get_scoring_lease_settings',
+    {
+      title: 'Get scoring lease settings',
+      description:
+        'Read the platform-owned SN118 scoring lease clock (ditto-subnet #1156): scoring_ticket_ttl_minutes, the deadline stamped on every NEW canonical, rollout, backfill, carryover, continual-retest and benchmark-canary scoring ticket and on every new score-retest replacement ticket. Returns the policy in force, its revision (0 means the shipped 180-minute default still governs), whether it came from a stored revision or the default, the accepted min/max minutes, max_age_seconds (how long a write takes to reach issuance), and optional newest-first revision history with actor and reason. ' +
+        'The validator run budget is min(harness cap, lease minus the report margin), so this TTL binds the fleet without a validator release. Requires backroom:read and changes nothing.',
+      inputSchema: MCP_SETTINGS_HISTORY_INPUT,
+      annotations: toolAnnotations('read'),
+    },
+    async ({ historyLimit, historyOffset }) =>
+      result(
+        compacted(
+          pageRevisionHistory(await fetchScoringLeaseSettings(), historyLimit, historyOffset),
+          REVISION_LISTS,
+        ),
+      ),
+  )
+
+  registerTool(
+    'set_scoring_lease_settings',
+    {
+      title: 'Set scoring lease settings',
+      description:
+        'Apply one append-only revision of the SN118 scoring lease clock with no platform restart. Supply the COMPLETE policy (settings.scoring_ticket_ttl_minutes, 60-240), expectedRevision exactly as get_scoring_lease_settings reports it, an auditable reason of at least 8 characters, and the confirmation "APPLY SCORING TICKET TTL <n> MINUTES" naming the TTL this revision applies. A partial write is rejected and extra JSON is ignored. ' +
+        'The TTL is stamped only on NEW canonical and replacement tickets: a live ticket keeps its minted deadline, so lowering it never shortens running work and raising it never extends it. The ceiling is the validator stop grace (245 minutes) minus five minutes for the signed report, so a raise can never outlast a validator restart drain. Requires backroom:write.',
+      inputSchema: setScoringLeaseSettingsInputSchema,
+      annotations: toolAnnotations('write', true),
+    },
+    async (input) => write(() => setScoringLeaseSettings(input, props.session.email)),
   )
 
   registerTool(
