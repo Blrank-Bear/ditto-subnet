@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.334.0 (2026-09-30)
+
+### Bug Fixes
+
+- **platform**: Close active quarantines behind terminal ATH rulings
+  ([#2554](https://github.com/ditto-assistant/ditto-subnet/pull/2554),
+  [`5f0ebdb`](https://github.com/ditto-assistant/ditto-subnet/commit/5f0ebdbfef7cee4fd6a887d9aa36e0749e714184))
+
+- **platform**: Judge exact-source canary guards in the Backroom preflight
+  ([#2545](https://github.com/ditto-assistant/ditto-subnet/pull/2545),
+  [`ddd8fa2`](https://github.com/ditto-assistant/ditto-subnet/commit/ddd8fa26eef9e2003cb873d6c9caf0b55f829dcf))
+
+### Features
+
+- **platform**: Make the scoring lease TTL a Backroom-revisioned setting
+  ([#2551](https://github.com/ditto-assistant/ditto-subnet/pull/2551),
+  [`169545d`](https://github.com/ditto-assistant/ditto-subnet/commit/169545db60e0d64d28fc806abb73c077ba577b57))
+
+
 ## v0.333.1 (2026-09-30)
 
 ### Bug Fixes
