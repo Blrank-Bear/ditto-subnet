@@ -744,7 +744,7 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   rotate_v13_scorer_cohort:
     'Rotate the exact pinned V13 cohort to a unanimously signed packet after all V13 tickets drain; preserves pin history.',
   schedule_l2_report_canary:
-    'Queue one isolated exact-artifact report on an enrolled Hetzner node. source_only is the default; full_runtime additionally runs private challenges in a separate Docker namespace. Neither mode changes screening, scoring, or quarantine. reviewSettingsRevision pins an l2-report-canary-* posture; never use node scopes.',
+    'Queue one isolated exact-artifact report. No screening/scoring authority. reviewSettingsRevision pins only l2-report-canary scopes; never experiment on node scopes. See tool help.',
   get_canonical_starter_fixture_preflight:
     'Read the pinned public starter tree and archive, independent review provenance, object integrity and scheduling readiness.',
   register_canonical_starter_fixture:
@@ -871,11 +871,15 @@ const MCP_CATALOG_DESCRIPTIONS: Record<string, string> = {
   get_source_release_policy:
     'Read source policy, gate version, pending/confirmed counts, and up to 25 payout receipts. Public requires completed winner emissions; never stops releases. Optional history; historyLimit defaults to 0.',
   set_burn_settings:
-    'Apply the subnet-owner emission burn as an append-only revision with expectedRevision, reason, and "APPLY BURN SETTINGS". THIS MOVES TAO. burn_share is the fraction of miner emission routed to the owner burn hotkey; the remainder is normalized across the eligible miner weights, so it scales the competitive vector WITHOUT re-ordering it. Validators pick it up on their next ledger read, but one that already submitted this epoch keeps its vector until the next, so the subnet-wide effect lands over roughly an epoch.',
+    'Apply a burn revision with expectedRevision, reason and "APPLY BURN SETTINGS". MOVES TAO; scales miner weights without reranking. Fleet effect takes an epoch. See tool help.',
   get_burn_settings:
     'Read the emission burn in force, the miner share it leaves, the governing revision, and how many validators are live enough to fold it. Revision history is newest-first and opt-in; historyLimit defaults to 0.',
   get_emission_eligibility_policy:
     'Read the terminal-review emission gate: posture (off/shadow/enforce), what the fleet is actually folding, stored or default revision, emission windows, and the shadow withheld count. Opt-in history.',
+  get_treasury_settings: 'Read shadow treasury buckets and history. No weights or funds move.',
+  record_treasury_settings: 'Record a shadow treasury revision with CAS and confirmation. No weights or funds move.',
+  quote_treasury_topup: 'Quote finalized GM funding routes and price impact. No execution.',
+  preview_treasury_topup: 'Dry-run a GM route against shadow limits. Execution disabled.',
   get_agent_emission_eligibility:
     'Explain one exact agent UUID: whether it is earning, the withheld class and reason, when a clear starts earning, and whether the validator fold sees it.',
   get_submission_cooldown:
@@ -2487,7 +2491,7 @@ export function createBackroomMcpServer(props: McpGrantProps) {
     'schedule_l2_report_canary',
     {
       title: 'Schedule report-only L2 canary',
-      description: 'Queue a single report-only V13 L2 audit on an enrolled Hetzner node. An older null-SHA attempt requires historicalRulingKind and historicalRulingId: the ruling SHA and current stored object are verified, but this does not establish what the old attempt executed. The status and score count must still match. requestId is the idempotency key; use a new requestId for an append-only replay after a terminal result. candidate_clear is not a certified benign label. Without reviewSettingsRevision the canary runs under the claiming node\'s effective review settings. To test a different posture, write it with apply_screener_review_settings to a scope named l2-report-canary or l2-report-canary-<name> and pass that revision here; Platform refuses *, bootstrap, node, worker, and inherit revisions, and the claiming worker applies the pin to this canary only. Never write a node or worker scope for an experiment: production screening on that node resolves it. The view reports the pin and the claim-bound settings_revision. Requires backroom:write and confirmation "QUEUE REPORT ONLY L2 CANARY".',
+      description: 'Queue one isolated exact-artifact report on an enrolled Hetzner node. source_only is the default; full_runtime additionally runs private challenges in a separate Docker namespace. Neither mode changes screening, scoring, or quarantine. Older null-SHA attempts require historicalRulingKind and historicalRulingId; the ruling SHA and current object are verified, not the old execution. Status and score count must still match. requestId is the idempotency key; terminal replays are append-only. candidate_clear is not certified benign. Without reviewSettingsRevision the claiming node posture applies. For experiments, apply_screener_review_settings to l2-report-canary or l2-report-canary-<name>, then pass that revision. Platform refuses *, bootstrap, node, worker and inherit pins. Never write a node or worker scope for an experiment because production resolves it. The view reports the pin and claim-bound settings_revision. Requires backroom:write and confirmation "QUEUE REPORT ONLY L2 CANARY".',
       inputSchema: scheduleL2ReportCanaryInputSchema,
       annotations: toolAnnotations('write', true),
     },
@@ -3362,7 +3366,7 @@ export function createBackroomMcpServer(props: McpGrantProps) {
     'get_treasury_settings',
     {
       title: 'Get SN118 treasury shadow policy',
-      description: 'Read separate maintenance-bounty and GM inference-credit allocation proposals, destinations, bounds, revision history, and the explicit none weight effect. This is shadow-only and changes neither weights nor funds. Requires backroom:read.',
+      description: 'Read shadow-only treasury proposals and revision history. V1 preserves separate GM/maintenance shares and the 500 bps combined limit. V2 describes one collector and configurable holding wallets under a combined 1000 bps pool, reserved before miner-remainder burn. Includes distribution interval, exact payee rules and publication controls; private billing references are available only in authenticated settings. Weight effect is none; funding, signing and payment observation are not activated. Requires backroom:read.',
       annotations: toolAnnotations('read'),
     },
     async () => result(await fetchTreasurySettings()),
@@ -3372,7 +3376,7 @@ export function createBackroomMcpServer(props: McpGrantProps) {
     'record_treasury_settings',
     {
       title: 'Record SN118 treasury shadow policy',
-      description: 'Append a reviewed shadow allocation revision with expectedRevision, reason, and exact confirmation RECORD TREASURY SHADOW POLICY. Combined proposed share is at most 500 basis points. This records policy only; it cannot change validator weights or send funds. Requires backroom:write.',
+      description: 'Append a shadow treasury proposal with expectedRevision, reason and exact confirmation RECORD TREASURY SHADOW POLICY. V1 retains its 500 bps cap and released-miner-share denominator. V2 uses one collector and distinct holding wallets under a combined 1000 bps service pool reserved before burn; billing references are optional for manual purchases. Wallet/rule changes enter public admin activity, excluding private billing references. Public addresses only; never provide seeds. Recording settings cannot change weights, sign transfers or activate observation. Requires backroom:write.',
       inputSchema: recordTreasurySettingsInputSchema,
       annotations: toolAnnotations('write', true),
     },
