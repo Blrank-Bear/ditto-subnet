@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.333.1 (2026-09-30)
+
+### Bug Fixes
+
+- **screener**: Require successful source reads for safe coverage
+  ([#2605](https://github.com/ditto-assistant/ditto-subnet/pull/2605),
+  [`2f4e489`](https://github.com/ditto-assistant/ditto-subnet/commit/2f4e489e936b2138fa3c44a4ac3b24d61f05f6f7))
+
+
 ## v0.333.0 (2026-09-30)
 
 ### Features
