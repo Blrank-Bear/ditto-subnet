@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.341.0 (2026-10-01)
+
+### Bug Fixes
+
+- **platform**: Let the V13 scorer cohort follow its unanimous release
+  ([#2623](https://github.com/ditto-assistant/ditto-subnet/pull/2623),
+  [`c9073eb`](https://github.com/ditto-assistant/ditto-subnet/commit/c9073ebc8af709bcfc87c475de6bfd745c822b12))
+
+### Features
+
+- **treasury**: Stage supervised receipt observer deployment
+  ([#2621](https://github.com/ditto-assistant/ditto-subnet/pull/2621),
+  [`282b721`](https://github.com/ditto-assistant/ditto-subnet/commit/282b72141bf1bb61bae1283a94510411f6fcc192))
+
+
 ## v0.340.0 (2026-10-01)
 
 ### Features
