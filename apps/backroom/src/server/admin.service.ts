@@ -1,4 +1,5 @@
 import '@tanstack/react-start/server-only'
+import { treasuryLedgerReadinessSchema } from '../lib/treasury-ledger.schemas'
 import { recordTreasurySettingsInputSchema, treasuryControlSchema, treasuryPreviewInputSchema, treasuryQuoteInputSchema, treasuryQuoteSchema, treasuryRevisionSchema, treasuryRouteImpactBps } from '../lib/treasury.schemas'
 
 export async function previewTreasuryTopup(rawInput: unknown) {
@@ -37,6 +38,12 @@ export async function fetchTreasuryQuote(rawInput: unknown) {
 
 export async function fetchTreasurySettings() {
   return treasuryControlSchema.parse(await platformAdminRequest('/api/v1/admin/treasury-settings'))
+}
+
+export async function fetchTreasuryLedgerReadiness() {
+  return treasuryLedgerReadinessSchema.parse(
+    await platformAdminRequest('/api/v1/admin/treasury-settings/ledger-readiness'),
+  )
 }
 
 export async function recordTreasurySettings(rawInput: unknown, actor: string) {

@@ -2,7 +2,9 @@
 
 from collections.abc import AsyncIterator
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -10,6 +12,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ditto.api_server.dependencies import get_session
+from ditto.db.models import LedgerEpochSnapshot
 
 pytestmark = pytest.mark.asyncio
 _TOKEN = "test-admin-token-at-least-32-characters"
@@ -81,6 +84,81 @@ async def test_defaults_and_revision(
     stale = await client.post(_URL, headers=_HEADERS, json=_payload())
     assert stale.status_code == 409
     assert len((await client.get(_URL, headers=_HEADERS)).json()["history"]) == 2
+
+
+async def test_ledger_readiness_is_read_only_and_never_funding_ready(
+    app: FastAPI,
+    client: httpx.AsyncClient,
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
+    _install(app, session_maker)
+    response = await client.get(f"{_URL}/ledger-readiness", headers=_HEADERS)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["configured_proposal"] is None
+    assert result["observer_status"] == "disabled"
+    assert result["observer_scope"] == "this_platform_process"
+    assert result["latest_stored_epoch_index"] is None
+    assert result["stored_shadow_pin"] is None
+    assert result["offline_policy_verified"] is False
+    assert result["weight_effect"] == "none"
+    assert result["can_enforce_weights"] is False
+    assert "producer_disabled" in result["blocking_reasons"]
+    assert "no_epoch_pin" in result["blocking_reasons"]
+    # A second read cannot create an epoch observation as a side effect.
+    repeat = await client.get(f"{_URL}/ledger-readiness", headers=_HEADERS)
+    assert repeat.status_code == 200
+    assert repeat.json() == result
+
+
+async def test_ledger_readiness_requires_admin(
+    app: FastAPI,
+    client: httpx.AsyncClient,
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
+    _install(app, session_maker)
+    assert (await client.get(f"{_URL}/ledger-readiness")).status_code in {401, 403}
+
+
+@pytest.mark.parametrize("context", [[], {"served": []}])
+async def test_ledger_readiness_reports_corrupt_json_without_rewriting_row(
+    app: FastAPI,
+    client: httpx.AsyncClient,
+    session_maker: async_sessionmaker[AsyncSession],
+    context: Any,
+) -> None:
+    _install(app, session_maker)
+    snapshot_id = uuid4()
+    async with session_maker() as session:
+        session.add(
+            LedgerEpochSnapshot(
+                snapshot_id=snapshot_id,
+                netuid=app.state.config.chain.netuid,
+                epoch_index=7,
+                last_epoch_block=100,
+                pinned_block=101,
+                pinned_block_hash="0x" + "ab" * 32,
+                pinned_at=datetime.now(UTC),
+                bench_version=14,
+                entries=[],
+                context=context,
+                ledger_digest="a" * 64,
+            )
+        )
+        await session.commit()
+    response = await client.get(f"{_URL}/ledger-readiness", headers=_HEADERS)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["latest_stored_epoch_index"] == 7
+    assert result["latest_stored_ledger_digest"] == "a" * 64
+    assert result["stored_shadow_pin"] is None
+    assert "stored_pin_invalid" in result["blocking_reasons"]
+    assert result["can_enforce_weights"] is False
+    async with session_maker() as session:
+        row = await session.get(LedgerEpochSnapshot, snapshot_id)
+        assert row is not None
+        assert row.context == context
+        assert row.ledger_digest == "a" * 64
 
 
 @pytest.mark.parametrize(

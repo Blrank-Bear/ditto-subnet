@@ -25,7 +25,7 @@ import hashlib
 import json
 import logging
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from time import monotonic
 from typing import TYPE_CHECKING, Any
@@ -36,6 +36,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from ditto.api_models import LedgerEntry, LedgerResponse
 from ditto.api_models.validator import ConfirmationSeedAnchorPin
 from ditto.api_server.koth import koth_entries_from_ledger, project_koth
+from ditto.api_server.treasury_shadow import observe_shadow_treasury
 from ditto.chain.errors import ChainError
 from ditto.db.queries.ledger_epochs import (
     LedgerPinDraft,
@@ -189,7 +190,11 @@ def response_from_pin(pin: LedgerPin, *, stale: bool, now: datetime) -> LedgerRe
 
 def treasury_pin_from_context(pin: LedgerPin) -> TreasuryLedgerPin | None:
     """Replay stored known fields only; malformed treasury evidence is never dropped."""
+    if not isinstance(pin.context, dict):
+        raise ValueError("stored ledger context must be an object")
     served = pin.context.get("served", {})
+    if not isinstance(served, dict):
+        raise ValueError("stored served context must be an object")
     if "treasury_pin" not in served:
         return None
     raw = served["treasury_pin"]
@@ -470,6 +475,11 @@ class LedgerPinMaterializer:
                 now=now,
                 requesting_validator_hotkey=None,
             )
+        treasury = await observe_shadow_treasury(app_state, schedule)
+        if treasury is not None:
+            # Preserve the shared snapshot cache; this observation belongs only
+            # to the epoch being materialized and is replayed from its stored pin.
+            snapshot = replace(snapshot, treasury_pin=treasury)
         draft = build_pin_draft(
             schedule,
             snapshot=snapshot,
