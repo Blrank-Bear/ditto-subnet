@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.337.0 (2026-10-01)
+
+### Chores
+
+- **tests**: Time busy claim gate from actual query
+  ([`26cddd4`](https://github.com/ditto-assistant/ditto-subnet/commit/26cddd4f35d74b1d9ceb55445cd510fc42ca49b5))
+
+### Features
+
+- **treasury**: Verify pinned offline policy approval
+  ([`f3f01ba`](https://github.com/ditto-assistant/ditto-subnet/commit/f3f01baf315a5e29083ae66d3832b27bc08e0470))
+
+
 ## v0.336.0 (2026-10-01)
 
 ### Features
