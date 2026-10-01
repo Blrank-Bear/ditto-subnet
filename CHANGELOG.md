@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.342.1 (2026-10-01)
+
+### Bug Fixes
+
+- **screener**: Escalate a v13 L1 that runs out of time to the deep review
+  ([#2642](https://github.com/ditto-assistant/ditto-subnet/pull/2642),
+  [`5e223e0`](https://github.com/ditto-assistant/ditto-subnet/commit/5e223e06b81e3457ea901da7d80a3fdc8674db46))
+
+
 ## v0.342.0 (2026-10-01)
 
 ### Bug Fixes
