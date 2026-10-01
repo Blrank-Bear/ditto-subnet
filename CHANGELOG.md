@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v0.341.1 (2026-10-01)
+
+### Bug Fixes
+
+- **backroom**: Publish portable scorer cohort writer schemas to refreshed MCP clients
+  ([#2613](https://github.com/ditto-assistant/ditto-subnet/pull/2613),
+  [`0746f2c`](https://github.com/ditto-assistant/ditto-subnet/commit/0746f2c1271c346dc2242f2ddd6b5994bba78803))
+
+- **screener**: Bound same-site L1 lead paraphrases for L2
+  ([#2614](https://github.com/ditto-assistant/ditto-subnet/pull/2614),
+  [`34e3d84`](https://github.com/ditto-assistant/ditto-subnet/commit/34e3d84cc1501df792f9a774b135f4ea787d9ac8))
+
+- **screener**: Give unsettled policy-v13 reviews a path to CLEAR or REJECT
+  ([#2626](https://github.com/ditto-assistant/ditto-subnet/pull/2626),
+  [`7aef250`](https://github.com/ditto-assistant/ditto-subnet/commit/7aef25026ffb5860e982596861fd7576f368f5ad))
+
+- **validator**: Verify the provisional incumbent's score proofs before folding it
+  ([#2615](https://github.com/ditto-assistant/ditto-subnet/pull/2615),
+  [`f502776`](https://github.com/ditto-assistant/ditto-subnet/commit/f5027765d7322b680b444f6d3125dc474f705198))
+
+### Refactoring
+
+- **screening-protocol**: Share one screening reason-code registry across worker and Platform
+  ([#2616](https://github.com/ditto-assistant/ditto-subnet/pull/2616),
+  [`a8b7705`](https://github.com/ditto-assistant/ditto-subnet/commit/a8b770539172afa6a7b5add118f1be70be50d639))
+
+
 ## v0.341.0 (2026-10-01)
 
 ### Bug Fixes
