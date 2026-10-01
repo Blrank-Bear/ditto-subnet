@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.335.0 (2026-10-01)
+
+### Bug Fixes
+
+- **treasury**: Exclude paused collector from miner payouts
+  ([#2606](https://github.com/ditto-assistant/ditto-subnet/pull/2606),
+  [`3226b27`](https://github.com/ditto-assistant/ditto-subnet/commit/3226b272e133c13e0935c94c52a9c2c7a547dc74))
+
+### Features
+
+- **treasury**: Pin shadow collector policy in epoch ledger
+  ([#2608](https://github.com/ditto-assistant/ditto-subnet/pull/2608),
+  [`d1b91cd`](https://github.com/ditto-assistant/ditto-subnet/commit/d1b91cd235642d476c297d9172a472e40df6c2e8))
+
+- **treasury**: Stage confined collector recovery and distributions
+  ([#2607](https://github.com/ditto-assistant/ditto-subnet/pull/2607),
+  [`4c65e6f`](https://github.com/ditto-assistant/ditto-subnet/commit/4c65e6f3271be1786ebfe4b73123dd8d45c6d906))
+
+
 ## v0.334.0 (2026-09-30)
 
 ### Bug Fixes
