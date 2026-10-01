@@ -1868,7 +1868,7 @@ export async function fetchV13ReportOnlyCurrentPacket() {
 }
 
 export async function activateV13ScorerCohort(input: {
-  hotkeys: [string, string, string]
+  hotkeys: string[]
   packet: {
     source_revision: string
     release_descriptor_digest: string
@@ -1896,7 +1896,7 @@ export async function activateV13ScorerCohort(input: {
 }
 
 export async function rotateV13ScorerCohort(input: {
-  hotkeys: [string, string, string]
+  hotkeys: string[]
   packet: {
     source_revision: string
     release_descriptor_digest: string
