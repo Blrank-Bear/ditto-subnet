@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.343.0 (2026-10-01)
+
+### Features
+
+- Stage isolated collector delegate custody
+  ([#2643](https://github.com/ditto-assistant/ditto-subnet/pull/2643),
+  [`e1b86b2`](https://github.com/ditto-assistant/ditto-subnet/commit/e1b86b2a673add3572febc35f7159b02e0f8ce37))
+
+
 ## v0.342.1 (2026-10-01)
 
 ### Bug Fixes
