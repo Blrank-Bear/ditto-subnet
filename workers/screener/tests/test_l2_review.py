@@ -3748,6 +3748,54 @@ async def test_terminal_l2_model_inconclusive_carries_bounded_signed_audit(
     ]
     assert audit.model_evidence_count == 1
     assert audit.model_causal_role_count == 1
+    # No critic or adjudicator ran, so the analyst ended the review.
+    assert audit.final_stage == "analyst"
+
+
+@pytest.mark.parametrize(
+    ("dispositions", "stage"),
+    [
+        ({"critic_disposition": "inconclusive"}, "critic"),
+        (
+            {
+                "critic_disposition": "confirm",
+                "adjudicator_disposition": "inconclusive",
+            },
+            "adjudicator",
+        ),
+    ],
+)
+async def test_inconclusive_audit_names_the_layer_that_could_not_settle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    dispositions: dict[str, str],
+    stage: str,
+) -> None:
+    agent = _sol_agent(tmp_path, _FakeHarness(), lambda _request: None)
+
+    async def review_uncached(*_args: object, **_kwargs: object) -> L2RunResult:
+        return L2RunResult(
+            observation=l2_review._failure("l2-model-inconclusive", "inconclusive"),
+            analyzed_files=(),
+            causal_path=(),
+            tools=("read_file",),
+            usage=L2Usage(),
+            cache_hit=False,
+            response_models=("reviewer",),
+            resolution_basis="insufficient_static_evidence",
+            **dispositions,  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr(agent, "_review_uncached", review_uncached)
+    result = await agent.review(
+        str(tmp_path / "unused.tar"),
+        artifact_sha256="ab" * 32,
+        attempt_id=ATTEMPT,
+        l1_observation=_l1(),
+        deadline=None,
+    )
+    audit = ScreenReviewAudit.model_validate(result.observation.review_audit)
+    assert audit.final_stage == stage
     assert "read_file" not in json.dumps(audit.model_dump(mode="json"))
 
 
@@ -8760,6 +8808,59 @@ async def test_l1_infra_failure_and_pre_v13_unsettled_l1_do_not_escalate() -> No
         )
         assert l2.calls == 0
         assert not result.ok
+
+
+def _l1_out_of_time() -> SourceReviewObservation:
+    return replace(
+        _unsettled_l1(),
+        error_code="source-review-lease-budget-exhausted",
+        review_audit={
+            "stage": "l1",
+            "reason_code": "source-review-lease-budget-exhausted",
+            "budget_stop_reason": "time",
+        },
+    )
+
+
+async def test_v13_l1_out_of_time_escalates_on_its_notes() -> None:
+    l1 = _FakeL1(_l1_out_of_time())
+    l2 = _FakeL2(_model_result(_safe()))
+    layered = LayeredSourceReviewAgent(l1=l1, l2=l2, mode="enforce")  # type: ignore[arg-type]
+
+    result = await layered.review(
+        "unused",
+        artifact_sha256="ab" * 32,
+        attempt_id=ATTEMPT,
+        policy_version=13,
+        deadline=asyncio.get_running_loop().time() + 3600,
+    )
+
+    assert l1.calls == l2.calls == 1
+    assert result.ok
+
+
+async def test_l1_out_of_time_does_not_escalate_without_lease_left() -> None:
+    cases = (
+        (_l1_out_of_time(), 13, 30.0),
+        (_l1_out_of_time(), 12, 3600.0),
+        (
+            replace(_l1_out_of_time(), failure_disposition="pass_inconclusive"),
+            13,
+            3600.0,
+        ),
+    )
+    for observation, policy_version, seconds_left in cases:
+        l1 = _FakeL1(observation)
+        l2 = _FakeL2(_model_result(_safe()))
+        layered = LayeredSourceReviewAgent(l1=l1, l2=l2, mode="enforce")  # type: ignore[arg-type]
+        await layered.review(
+            "unused",
+            artifact_sha256="ab" * 32,
+            attempt_id=ATTEMPT,
+            policy_version=policy_version,
+            deadline=asyncio.get_running_loop().time() + seconds_left,
+        )
+        assert l2.calls == 0
 
 
 def _auth_wait_agent(
