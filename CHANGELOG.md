@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.338.0 (2026-10-01)
+
+### Features
+
+- **treasury**: Bind service weights to offline approved epochs
+  ([`2c61870`](https://github.com/ditto-assistant/ditto-subnet/commit/2c6187057edf07545f497e655d77c3079528fe00))
+
+
 ## v0.337.0 (2026-10-01)
 
 ### Chores
