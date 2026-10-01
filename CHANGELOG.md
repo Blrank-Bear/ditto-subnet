@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.339.0 (2026-10-01)
+
+### Features
+
+- **treasury**: Ingest verified service and vendor receipts
+  ([#2618](https://github.com/ditto-assistant/ditto-subnet/pull/2618),
+  [`f44bc8d`](https://github.com/ditto-assistant/ditto-subnet/commit/f44bc8d3c9b4e2e6e161e162c9b9bbd9ad8a0a6d))
+
+
 ## v0.338.0 (2026-10-01)
 
 ### Features
