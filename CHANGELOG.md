@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.336.0 (2026-10-01)
+
+### Features
+
+- **treasury**: Observe finalized collector identity in shadow
+  ([`cbf99cf`](https://github.com/ditto-assistant/ditto-subnet/commit/cbf99cf87dca1572c628957072a5cb1a81fd8e73))
+
+
 ## v0.335.0 (2026-10-01)
 
 ### Bug Fixes
