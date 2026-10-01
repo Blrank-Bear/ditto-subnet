@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.342.0 (2026-10-01)
+
+### Bug Fixes
+
+- **screener**: Wait out Ditto Router deploy 401s instead of discarding reviews
+  ([#2641](https://github.com/ditto-assistant/ditto-subnet/pull/2641),
+  [`1362729`](https://github.com/ditto-assistant/ditto-subnet/commit/13627299639546431d6d832d854a3e803334a7cf))
+
+### Features
+
+- **treasury**: Add durable separate-user selector handoff
+  ([#2622](https://github.com/ditto-assistant/ditto-subnet/pull/2622),
+  [`213afd2`](https://github.com/ditto-assistant/ditto-subnet/commit/213afd2a191279de74beb61fa4f35bbd3d5bccb0))
+
+
 ## v0.341.1 (2026-10-01)
 
 ### Bug Fixes
