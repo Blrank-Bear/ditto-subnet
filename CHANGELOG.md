@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.343.1 (2026-10-02)
+
+### Bug Fixes
+
+- Isolate collector custody state and backend bootstrap
+  ([#2645](https://github.com/ditto-assistant/ditto-subnet/pull/2645),
+  [`08626dd`](https://github.com/ditto-assistant/ditto-subnet/commit/08626dd2995c1c8ca49d74ccf28f2af0b06d8e89))
+
+### Chores
+
+- Stage reviewed collector custody bootstrap intent
+  ([#2644](https://github.com/ditto-assistant/ditto-subnet/pull/2644),
+  [`c904afe`](https://github.com/ditto-assistant/ditto-subnet/commit/c904afec616b2763aa158332e8d37a26dec2eb4b))
+
+
 ## v0.343.0 (2026-10-01)
 
 ### Features
