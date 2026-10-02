@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.343.2 (2026-10-02)
+
+### Bug Fixes
+
+- **screener**: Name review-credit exhaustion and stop claiming on it
+  ([#2646](https://github.com/ditto-assistant/ditto-subnet/pull/2646),
+  [`0b8d7a1`](https://github.com/ditto-assistant/ditto-subnet/commit/0b8d7a1822510e80763699316a9b77ab8cc87adf))
+
+
 ## v0.343.1 (2026-10-02)
 
 ### Bug Fixes
